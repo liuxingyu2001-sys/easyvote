@@ -112,7 +112,9 @@ public class ApiCommandPlugin extends JavaPlugin {
     }
 
     public void reloadPluginConfig() {
+        saveDefaultConfig();
         reloadConfig();
+        updateConfig();
         loadConfig();
         if (voteListener != null) {
             voteListener.reloadRewards();
