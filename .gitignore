@@ -1,0 +1,14 @@
+# Maven
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Debug files
+plugins/ApiCommand/debug/
+
+# OS
+.DS_Store
+Thumbs.db

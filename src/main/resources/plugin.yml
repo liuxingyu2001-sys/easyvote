@@ -1,0 +1,16 @@
+name: ApiCommand
+version: ${project.version}
+main: com.apicommand.ApiCommandPlugin
+api-version: 1.21
+author: liuxingyu
+description: 提供外部 API 接口来执行游戏指令
+softdepend: [ "SkinsRestorer" ]
+commands:
+  apicommand:
+    description: 管理 API 命令插件
+    usage: /apicommand <reload|key|status|stats|votekey|votestats|testvote|setskin>
+    permission: apicommand.admin
+permissions:
+  apicommand.admin:
+    description: 允许管理 API 命令插件
+    default: op

@@ -1,0 +1,82 @@
+# API 密钥配置
+api-key: aabbcc
+
+# API 服务器端口
+api-port: 10278
+
+# 是否启用 API
+api-enabled: true
+
+# 最大并发连接数（限制同时处理的请求数量）
+max-connections: 10
+
+# 请求超时时间（毫秒）
+# 如果命令执行超过此时间，将返回超时错误
+request-timeout: 15000
+
+# 是否启用请求限流
+# 启用后将限制每个IP每分钟的请求数量
+enable-rate-limit: true
+
+# 每分钟最大请求数（每个IP）
+max-requests-per-minute: 600
+
+# Votifier 投票功能配置
+votifier:
+  # 是否启用 Votifier 投票功能
+  enabled: true
+  
+  # Votifier 服务器监听地址
+  host: 0.0.0.0
+  
+  # Votifier 服务器端口（默认 8192）
+  port: 10022
+  
+  # RSA 密钥对（首次运行自动生成，请勿手动修改）
+  public-key: ""
+  private-key: ""
+  
+  # 最大线程数（处理投票请求）
+  max-threads: 10
+  
+  # 投票奖励配置
+  # 支持的变量：
+  #   %player% - 玩家名
+  #   %player_name% - 玩家名（与 %player% 相同）
+  #   %service% - 投票网站名称
+  #   %address% - 投票来源 IP
+  #   %uuid% - 玩家 UUID
+  # 
+  # 注意：键名不要包含点号(.)，使用简短名称即可
+  # 例如：mczfw.com 使用 mczfw，first-vote-mczfw.com 使用 first-vote-mczfw
+  # 投票奖励配置
+
+  rewards:
+    # 找服网首次投票奖励
+    first-vote-mczfw:
+      - "serveritem give xcg 1 %player%"
+      - "msg %player% &6&l这是你在找服网首次投票 感谢你的投票！"
+      - "msg %player% &7不到账请检查找服网的游戏ID是否正确以及玩家是否在线"
+    # 找服网常规奖励
+    mczfw:
+      - "money give %player% 2000 -s"
+      - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
+      
+    first-vote-wdsjfwq:
+      - "msg %player% &6&l恭喜你！这是你在我的世界找服网！感谢你的投票！"
+      - "luckypeach give %player% peach_2 10"
+      - "money give %player% 3300 -s"
+
+    wdsjfwq:
+      - "money give %player% 2000 -s"
+      - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
+
+    default:
+      - "money give %player% 2000 -s"
+      - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
+      #- "lp user %player% parent addtemp fly 1d accumulate"
+    
+  # 是否在控制台显示详细投票信息
+  verbose: false
+
+debug: true
