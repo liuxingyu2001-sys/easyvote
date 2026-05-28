@@ -4,7 +4,7 @@ main: com.apicommand.ApiCommandPlugin
 api-version: 1.21
 author: liuxingyu
 description: 提供外部 API 接口来执行游戏指令
-softdepend: [ "SkinsRestorer" ]
+softdepend: []
 commands:
   apicommand:
     description: 管理 API 命令插件

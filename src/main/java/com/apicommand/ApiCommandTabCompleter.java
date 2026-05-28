@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 public class ApiCommandTabCompleter implements TabCompleter {
 
     private static final List<String> SUB_COMMANDS = Arrays.asList(
-        "reload", "key", "pubkey", "status", "stats", "votestats", "testvote", "setskin", "clearskin", "clearvotes"
+        "reload", "pubkey", "votestats", "testvote", "clearvotes"
     );
     
     private static final List<String> VOTE_SERVICES = Arrays.asList(
@@ -36,7 +36,7 @@ public class ApiCommandTabCompleter implements TabCompleter {
         } else if (args.length == 2) {
             String subCommand = args[0].toLowerCase();
             
-            if ("testvote".equals(subCommand) || "setskin".equals(subCommand) || "clearskin".equals(subCommand) || "clearvotes".equals(subCommand)) {
+            if ("testvote".equals(subCommand) || "clearvotes".equals(subCommand)) {
                 String playerName = args[1].toLowerCase();
                 for (Player player : sender.getServer().getOnlinePlayers()) {
                     if (player.getName().toLowerCase().startsWith(playerName)) {

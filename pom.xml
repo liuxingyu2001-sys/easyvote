@@ -88,11 +88,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>net.skinsrestorer</groupId>
-            <artifactId>skinsrestorer-api</artifactId>
-            <version>15.8.2</version>
-            <scope>provided</scope>
-        </dependency>
+
     </dependencies>
 </project>

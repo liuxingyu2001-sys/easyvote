@@ -2,21 +2,13 @@ package com.apicommand;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.UUID;
+import java.util.Map;
 
 public class ApiCommandPlugin extends JavaPlugin {
 
     private static ApiCommandPlugin instance;
-    private ApiServer apiServer;
-    private Object skinsRestorer;
-    private String apiKey;
-    private int apiPort;
-    private boolean apiEnabled;
-    private int maxConnections;
-    private int requestTimeout;
-    private boolean enableRateLimit;
-    private int maxRequestsPerMinute;
     private VotifierServer votifierServer;
     private RSAKeyManager keyManager;
     private VoteHistory voteHistory;
@@ -33,30 +25,6 @@ public class ApiCommandPlugin extends JavaPlugin {
         loadConfig();
         
         try {
-            Class<?> providerClass = Class.forName("net.skinsrestorer.api.SkinsRestorerProvider");
-            Object api = providerClass.getMethod("get").invoke(null);
-            skinsRestorer = api;
-            getLogger().info("已加载 SkinsRestorer API");
-        } catch (ClassNotFoundException e) {
-            getLogger().warning("未找到 SkinsRestorer 插件，皮肤功能将不可用");
-        } catch (NoClassDefFoundError e) {
-            getLogger().warning("未找到 SkinsRestorer 插件，皮肤功能将不可用");
-        } catch (Exception e) {
-            getLogger().warning("SkinsRestorer API 不可用: " + e.getMessage());
-            getLogger().warning("原因: 在 Velocity 代理模式下，子服务器需要配置数据库才能使用 SkinsRestorer API");
-            getLogger().warning("解决方案: 在子服务器的 SkinsRestorer config.yml 中配置 MySQL 数据库");
-            getLogger().warning("或者: 在子服务器的 SkinsRestorer config.yml 中设置 server.proxyMode.detection: DISABLED");
-            getLogger().warning("ApiCommand 插件的其他功能（API 服务器）仍可正常使用");
-        }
-        
-        try {
-            startApiServer();
-        } catch (Exception e) {
-            getLogger().severe("无法启动 API 服务器: " + e.getMessage());
-            e.printStackTrace();
-        }
-        
-        try {
             startVotifier();
         } catch (Exception e) {
             getLogger().severe("无法启动 Votifier 服务器: " + e.getMessage());
@@ -70,9 +38,6 @@ public class ApiCommandPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (apiServer != null) {
-            apiServer.stop();
-        }
         if (votifierServer != null) {
             votifierServer.stop();
         }
@@ -96,7 +61,7 @@ public class ApiCommandPlugin extends JavaPlugin {
         var rewardsSection = getConfig().getConfigurationSection("votifier.rewards");
         
         if (rewardsSection == null) {
-            java.util.Map<String, Object> rewardsMap = new java.util.LinkedHashMap<>();
+            Map<String, Object> rewardsMap = new LinkedHashMap<>();
             
             rewardsMap.put("default", List.of(
                 "msg %player% &a感谢你的投票！",
@@ -135,11 +100,6 @@ public class ApiCommandPlugin extends JavaPlugin {
             getLogger().info("已加载投票奖励配置 (共 " + rewardsSection.getKeys(false).size() + " 个网站)");
         }
         
-        if (getConfig().getString("api-key", "your-secret-api-key-change-this").equals("your-secret-api-key-change-this")) {
-            getConfig().set("api-key", UUID.randomUUID().toString());
-            needsSave = true;
-        }
-        
         if (needsSave) {
             saveConfig();
             getLogger().info("配置文件已更新");
@@ -147,14 +107,6 @@ public class ApiCommandPlugin extends JavaPlugin {
     }
 
     private void loadConfig() {
-        apiKey = getConfig().getString("api-key", "your-secret-api-key-change-this");
-        apiPort = getConfig().getInt("api-port", 28888);
-        apiEnabled = getConfig().getBoolean("api-enabled", true);
-        maxConnections = getConfig().getInt("max-connections", 10);
-        requestTimeout = getConfig().getInt("request-timeout", 15000);
-        enableRateLimit = getConfig().getBoolean("enable-rate-limit", true);
-        maxRequestsPerMinute = getConfig().getInt("max-requests-per-minute", 600);
-        
         votifierEnabled = getConfig().getBoolean("votifier.enabled", true);
         debugEnabled = getConfig().getBoolean("debug", false);
     }
@@ -165,16 +117,6 @@ public class ApiCommandPlugin extends JavaPlugin {
         if (voteListener != null) {
             voteListener.reloadRewards();
         }
-    }
-
-    private void startApiServer() throws Exception {
-        if (!apiEnabled) {
-            getLogger().info("API 服务器已禁用");
-            return;
-        }
-        
-        apiServer = new ApiServer(apiPort, apiKey, maxConnections, requestTimeout, enableRateLimit, maxRequestsPerMinute);
-        apiServer.start();
     }
 
     private void startVotifier() throws Exception {
@@ -223,38 +165,6 @@ public class ApiCommandPlugin extends JavaPlugin {
 
     public static ApiCommandPlugin getInstance() {
         return instance;
-    }
-
-    public String getApiKey() {
-        return apiKey;
-    }
-
-    public int getApiPort() {
-        return apiPort;
-    }
-
-    public boolean isApiEnabled() {
-        return apiEnabled;
-    }
-
-    public int getMaxConnections() {
-        return maxConnections;
-    }
-
-    public int getRequestTimeout() {
-        return requestTimeout;
-    }
-
-    public boolean isRateLimitEnabled() {
-        return enableRateLimit;
-    }
-
-    public int getMaxRequestsPerMinute() {
-        return maxRequestsPerMinute;
-    }
-
-    public Object getSkinsRestorer() {
-        return skinsRestorer;
     }
 
     public VoteHistory getVoteHistory() {
