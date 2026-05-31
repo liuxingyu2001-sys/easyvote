@@ -111,7 +111,7 @@ public class VoteListener implements Listener {
             for (String command : commands) {
                 String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
                 final String cmd = processedCommand;
-                Bukkit.getScheduler().runTask(plugin, () -> {
+                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
                 });
             }

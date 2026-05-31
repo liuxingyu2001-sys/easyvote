@@ -168,7 +168,7 @@ public class VotifierServer {
             plugin.getLogger().info("收到投票: " + username + " 从 " + serviceName);
             
             VoteEvent event = new VoteEvent(username, serviceName, address, timestamp);
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
                 Bukkit.getPluginManager().callEvent(event);
             });
             
@@ -217,7 +217,7 @@ public class VotifierServer {
             plugin.getLogger().info("收到 Votifier v2 投票: " + username + " 从 " + serviceName + " (" + address + ")");
             
             VoteEvent event = new VoteEvent(username, serviceName, address != null ? address : clientAddress, timestamp);
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
                 Bukkit.getPluginManager().callEvent(event);
             });
             
@@ -292,7 +292,7 @@ public class VotifierServer {
             plugin.getLogger().info("收到自定义格式投票: " + username + " 从 " + serviceName + " (" + ip + ":" + port + ")");
             
             VoteEvent event = new VoteEvent(username, serviceName, ip, timestamp);
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
                 Bukkit.getPluginManager().callEvent(event);
             });
             
