@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -18,14 +18,14 @@ import java.util.stream.Collectors;
 
 public class VoteHistory {
 
-    private final ApiCommandPlugin plugin;
+    private final EasyVotePlugin plugin;
     private final Map<String, List<VoteRecord>> playerVotes;
     private final Map<String, Integer> serviceVoteCounts;
     private final Map<String, Integer> playerVoteCounts;
     private int totalVotes;
     private final File dataFile;
 
-    public VoteHistory(ApiCommandPlugin plugin) {
+    public VoteHistory(EasyVotePlugin plugin) {
         this.plugin = plugin;
         this.playerVotes = new ConcurrentHashMap<>();
         this.serviceVoteCounts = new ConcurrentHashMap<>();

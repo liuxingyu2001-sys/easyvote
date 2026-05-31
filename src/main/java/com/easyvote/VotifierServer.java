@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.Bukkit;
 
@@ -17,7 +17,7 @@ import java.util.logging.Level;
 
 public class VotifierServer {
 
-    private final ApiCommandPlugin plugin;
+    private final EasyVotePlugin plugin;
     private final RSAKeyManager keyManager;
     private final int port;
     private final String host;
@@ -25,7 +25,7 @@ public class VotifierServer {
     private ExecutorService threadPool;
     private volatile boolean running;
 
-    public VotifierServer(ApiCommandPlugin plugin, RSAKeyManager keyManager, String host, int port, int maxThreads) {
+    public VotifierServer(EasyVotePlugin plugin, RSAKeyManager keyManager, String host, int port, int maxThreads) {
         this.plugin = plugin;
         this.keyManager = keyManager;
         this.host = host;

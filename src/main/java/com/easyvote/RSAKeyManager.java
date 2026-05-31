@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import javax.crypto.Cipher;
 import java.io.ByteArrayOutputStream;

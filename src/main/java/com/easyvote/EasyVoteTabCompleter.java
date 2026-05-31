@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class ApiCommandTabCompleter implements TabCompleter {
+public class EasyVoteTabCompleter implements TabCompleter {
 
     private static final List<String> SUB_COMMANDS = Arrays.asList(
         "reload", "pubkey", "votestats", "testvote", "clearvotes"
@@ -24,7 +24,7 @@ public class ApiCommandTabCompleter implements TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         
-        if (!sender.hasPermission("apicommand.admin")) {
+        if (!sender.hasPermission("easyvote.admin")) {
             return completions;
         }
         
@@ -43,7 +43,7 @@ public class ApiCommandTabCompleter implements TabCompleter {
                         completions.add(player.getName());
                     }
                 }
-                VoteHistory voteHistory = ApiCommandPlugin.getInstance().getVoteHistory();
+                VoteHistory voteHistory = EasyVotePlugin.getInstance().getVoteHistory();
                 if (voteHistory != null) {
                     for (String name : voteHistory.getPlayerVoteCounts().keySet()) {
                         if (name.startsWith(playerName) && !completions.contains(name)) {

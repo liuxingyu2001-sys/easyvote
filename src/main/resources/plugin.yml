@@ -1,16 +1,16 @@
-name: ApiCommand
+name: EasyVote
 version: ${project.version}
-main: com.apicommand.ApiCommandPlugin
+main: com.easyvote.EasyVotePlugin
 api-version: 1.21
 author: liuxingyu
-description: 提供外部 API 接口来执行游戏指令
+description: 轻量级 Votifier 投票监听插件，支持自定义投票奖励
 softdepend: []
 commands:
-  apicommand:
-    description: 管理 API 命令插件
-    usage: /apicommand <reload|key|status|stats|votekey|votestats|testvote|setskin>
-    permission: apicommand.admin
+  easyvote:
+    description: 管理 EasyVote 投票插件
+    usage: /easyvote <reload|pubkey|votestats|testvote|clearvotes>
+    permission: easyvote.admin
 permissions:
-  apicommand.admin:
-    description: 允许管理 API 命令插件
+  easyvote.admin:
+    description: 允许管理 EasyVote 投票插件
     default: op

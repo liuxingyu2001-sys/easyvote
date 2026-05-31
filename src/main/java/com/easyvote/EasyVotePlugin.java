@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -6,9 +6,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ApiCommandPlugin extends JavaPlugin {
+public class EasyVotePlugin extends JavaPlugin {
 
-    private static ApiCommandPlugin instance;
+    private static EasyVotePlugin instance;
     private VotifierServer votifierServer;
     private RSAKeyManager keyManager;
     private VoteHistory voteHistory;
@@ -30,10 +30,10 @@ public class ApiCommandPlugin extends JavaPlugin {
             getLogger().severe("无法启动 Votifier 服务器: " + e.getMessage());
         }
         
-        getCommand("apicommand").setExecutor(new ApiCommand());
-        getCommand("apicommand").setTabCompleter(new ApiCommandTabCompleter());
+        getCommand("easyvote").setExecutor(new EasyVoteCommand());
+        getCommand("easyvote").setTabCompleter(new EasyVoteTabCompleter());
         
-        getLogger().info("ApiCommand 插件已启用!");
+        getLogger().info("EasyVote 插件已启用!");
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ApiCommandPlugin extends JavaPlugin {
         if (votifierServer != null) {
             votifierServer.stop();
         }
-        getLogger().info("ApiCommand 插件已禁用!");
+        getLogger().info("EasyVote 插件已禁用!");
     }
 
     private void updateConfig() {
@@ -165,7 +165,7 @@ public class ApiCommandPlugin extends JavaPlugin {
         votifierServer.start();
     }
 
-    public static ApiCommandPlugin getInstance() {
+    public static EasyVotePlugin getInstance() {
         return instance;
     }
 

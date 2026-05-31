@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -6,11 +6,11 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 
-public class ApiCommand implements CommandExecutor {
+public class EasyVoteCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("apicommand.admin")) {
+        if (!sender.hasPermission("easyvote.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有权限使用此命令!");
             return true;
         }
@@ -24,12 +24,12 @@ public class ApiCommand implements CommandExecutor {
         
         switch (subCommand) {
             case "reload":
-                ApiCommandPlugin.getInstance().reloadPluginConfig();
+                EasyVotePlugin.getInstance().reloadPluginConfig();
                 sender.sendMessage(ChatColor.GREEN + "配置已重新加载!");
                 break;
                 
             case "pubkey":
-                RSAKeyManager keyManager = ApiCommandPlugin.getInstance().getKeyManager();
+                RSAKeyManager keyManager = EasyVotePlugin.getInstance().getKeyManager();
                 if (keyManager == null) {
                     sender.sendMessage(ChatColor.RED + "Votifier 未启用!");
                     break;
@@ -45,7 +45,7 @@ public class ApiCommand implements CommandExecutor {
                 break;
                 
             case "votestats":
-                VoteHistory voteHistory = ApiCommandPlugin.getInstance().getVoteHistory();
+                VoteHistory voteHistory = EasyVotePlugin.getInstance().getVoteHistory();
                 if (voteHistory == null) {
                     sender.sendMessage(ChatColor.RED + "Votifier 未启用!");
                     break;
@@ -56,8 +56,8 @@ public class ApiCommand implements CommandExecutor {
                 
             case "testvote":
                 if (args.length < 3) {
-                    sender.sendMessage(ChatColor.RED + "用法: /apicommand testvote <玩家名> <网站名>");
-                    sender.sendMessage(ChatColor.RED + "示例: /apicommand testvote Steve mczfw");
+                    sender.sendMessage(ChatColor.RED + "用法: /easyvote testvote <玩家名> <网站名>");
+                    sender.sendMessage(ChatColor.RED + "示例: /easyvote testvote Steve mczfw");
                     break;
                 }
                 String testPlayer = args[1];
@@ -69,7 +69,7 @@ public class ApiCommand implements CommandExecutor {
                 break;
                 
             case "clearvotes":
-                VoteHistory history = ApiCommandPlugin.getInstance().getVoteHistory();
+                VoteHistory history = EasyVotePlugin.getInstance().getVoteHistory();
                 if (history == null) {
                     sender.sendMessage(ChatColor.RED + "Votifier 未启用!");
                     break;
@@ -97,12 +97,12 @@ public class ApiCommand implements CommandExecutor {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== ApiCommand 帮助 ===");
-        sender.sendMessage(ChatColor.YELLOW + "/apicommand reload" + ChatColor.WHITE + " - 重新加载配置");
-        sender.sendMessage(ChatColor.YELLOW + "/apicommand pubkey" + ChatColor.WHITE + " - 显示 Votifier 公钥");
-        sender.sendMessage(ChatColor.YELLOW + "/apicommand votestats" + ChatColor.WHITE + " - 显示投票统计");
-        sender.sendMessage(ChatColor.YELLOW + "/apicommand testvote <玩家名> <网站名>" + ChatColor.WHITE + " - 测试投票奖励");
-        sender.sendMessage(ChatColor.YELLOW + "/apicommand clearvotes [玩家名]" + ChatColor.WHITE + " - 清除投票数据");
+        sender.sendMessage(ChatColor.GOLD + "=== EasyVote 帮助 ===");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote reload" + ChatColor.WHITE + " - 重新加载配置");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote pubkey" + ChatColor.WHITE + " - 显示 Votifier 公钥");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote votestats" + ChatColor.WHITE + " - 显示投票统计");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote testvote <玩家名> <网站名>" + ChatColor.WHITE + " - 测试投票奖励");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote clearvotes [玩家名]" + ChatColor.WHITE + " - 清除投票数据");
         sender.sendMessage(ChatColor.GRAY + "  不指定玩家名则清除所有数据");
     }
 }

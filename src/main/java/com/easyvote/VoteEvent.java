@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;

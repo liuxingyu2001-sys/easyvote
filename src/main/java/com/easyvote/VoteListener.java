@@ -1,4 +1,4 @@
-package com.apicommand;
+package com.easyvote;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -17,11 +17,11 @@ import java.util.Map;
 
 public class VoteListener implements Listener {
 
-    private final ApiCommandPlugin plugin;
+    private final EasyVotePlugin plugin;
     private final VoteHistory voteHistory;
     private final Map<String, List<String>> rewardCommands;
 
-    public VoteListener(ApiCommandPlugin plugin, VoteHistory voteHistory) {
+    public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory) {
         this.plugin = plugin;
         this.voteHistory = voteHistory;
         this.rewardCommands = new HashMap<>();
