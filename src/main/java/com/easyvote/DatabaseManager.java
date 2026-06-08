@@ -37,7 +37,9 @@ public class DatabaseManager {
             return;
         }
 
-        try (Connection conn = getConnection(); Statement stmt = conn.createStatement()) {
+        try {
+            Connection conn = getConnection();
+            Statement stmt = conn.createStatement();
             stmt.execute("PRAGMA journal_mode=WAL");
             stmt.execute("PRAGMA synchronous=NORMAL");
 
@@ -66,6 +68,7 @@ public class DatabaseManager {
                 ")"
             );
 
+            stmt.close();
             migrateCsvIfExists();
 
             plugin.getLogger().info("SQLite 数据库已就绪: " + dbFile.getAbsolutePath());
@@ -96,11 +99,10 @@ public class DatabaseManager {
     private int migrateVotesCsv(File file) {
         int count = 0;
         String sql = "INSERT INTO votes (player_name, service_name, address, timestamp) VALUES (?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             BufferedReader reader = new BufferedReader(
+        try (BufferedReader reader = new BufferedReader(
                  new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-
+            Connection conn = getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql);
             conn.setAutoCommit(false);
             String line;
             while ((line = reader.readLine()) != null) {
@@ -120,6 +122,7 @@ public class DatabaseManager {
             ps.executeBatch();
             conn.commit();
             conn.setAutoCommit(true);
+            ps.close();
         } catch (Exception e) {
             plugin.getLogger().warning("迁移 votes.csv 失败: " + e.getMessage());
         }
@@ -129,11 +132,10 @@ public class DatabaseManager {
     private int migrateMilestonesCsv(File file) {
         int count = 0;
         String sql = "INSERT OR IGNORE INTO milestones (player_name, count, timestamp) VALUES (?, ?, ?)";
-        try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             BufferedReader reader = new BufferedReader(
+        try (BufferedReader reader = new BufferedReader(
                  new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-
+            Connection conn = getConnection();
+            PreparedStatement ps = conn.prepareStatement(sql);
             conn.setAutoCommit(false);
             String line;
             while ((line = reader.readLine()) != null) {
@@ -152,6 +154,7 @@ public class DatabaseManager {
             ps.executeBatch();
             conn.commit();
             conn.setAutoCommit(true);
+            ps.close();
         } catch (Exception e) {
             plugin.getLogger().warning("迁移 milestones.csv 失败: " + e.getMessage());
         }

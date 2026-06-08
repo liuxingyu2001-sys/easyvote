@@ -76,52 +76,53 @@ public class VoteListener implements Listener {
         
         voteHistory.addVote(playerName, serviceName, address, timestamp);
         
-        Player player = Bukkit.getPlayerExact(playerName);
-        if (player == null || !player.isOnline()) {
-            plugin.getLogger().info("玩家 " + playerName + " 不在线，跳过奖励");
-            return;
-        }
-        
-        String serviceKey = mapServiceName(serviceName);
-        String firstVoteKey = "first-vote-" + serviceKey;
-        plugin.getLogger().info("[投票奖励] 玩家: " + playerName + ", 网站: " + serviceName + ", 映射后Key: " + serviceKey + ", 首次Key: " + firstVoteKey);
-        
-        List<String> commands = null;
-        String rewardType = "";
-        
-        if (isFirstVote) {
-            commands = rewardCommands.get(firstVoteKey);
-            if (commands != null && !commands.isEmpty()) {
-                rewardType = "首次奖励";
+        // Schedule reward dispatch on the global region thread (Folia-safe)
+        Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+            Player player = Bukkit.getPlayerExact(playerName);
+            if (player == null || !player.isOnline()) {
+                plugin.getLogger().info("玩家 " + playerName + " 不在线，跳过奖励");
+                return;
             }
-        }
-        
-        if (commands == null || commands.isEmpty()) {
-            commands = rewardCommands.get(serviceKey);
-            if (commands != null && !commands.isEmpty()) {
-                rewardType = "常规奖励";
+            
+            String serviceKey = mapServiceName(serviceName);
+            String firstVoteKey = "first-vote-" + serviceKey;
+            plugin.getLogger().info("[投票奖励] 玩家: " + playerName + ", 网站: " + serviceName + ", 映射后Key: " + serviceKey + ", 首次Key: " + firstVoteKey);
+            
+            List<String> commands = null;
+            String rewardType = "";
+            
+            if (isFirstVote) {
+                commands = rewardCommands.get(firstVoteKey);
+                if (commands != null && !commands.isEmpty()) {
+                    rewardType = "首次奖励";
+                }
             }
-        }
-        
-        if (commands == null || commands.isEmpty()) {
-            commands = rewardCommands.get("default");
-            rewardType = "默认奖励";
-        }
-        
-        if (commands != null && !commands.isEmpty()) {
-            plugin.getLogger().info(playerName + " 从 " + serviceName + " 投票，发放" + rewardType);
-            for (String command : commands) {
-                String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
-                final String cmd = processedCommand;
-                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+            
+            if (commands == null || commands.isEmpty()) {
+                commands = rewardCommands.get(serviceKey);
+                if (commands != null && !commands.isEmpty()) {
+                    rewardType = "常规奖励";
+                }
+            }
+            
+            if (commands == null || commands.isEmpty()) {
+                commands = rewardCommands.get("default");
+                rewardType = "默认奖励";
+            }
+            
+            if (commands != null && !commands.isEmpty()) {
+                plugin.getLogger().info(playerName + " 从 " + serviceName + " 投票，发放" + rewardType);
+                for (String command : commands) {
+                    String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
+                    final String cmd = processedCommand;
                     Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-                });
+                }
+            } else {
+                plugin.getLogger().warning("未找到 " + playerName + " 的投票奖励配置!");
             }
-        } else {
-            plugin.getLogger().warning("未找到 " + playerName + " 的投票奖励配置!");
-        }
-        
-        checkCumulativeMilestones(playerName, serviceName, address, player);
+            
+            checkCumulativeMilestones(playerName, serviceName, address, player);
+        });
     }
     
     private void checkCumulativeMilestones(String playerName, String serviceName, String address, Player player) {
@@ -172,10 +173,7 @@ public class VoteListener implements Listener {
             for (Object cmdObj : rawCommands) {
                 String command = cmdObj.toString();
                 String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
-                final String cmd = processedCommand;
-                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-                });
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
             }
         }
     }

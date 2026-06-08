@@ -64,7 +64,9 @@ public class EasyVoteCommand implements CommandExecutor {
                 String testService = args[2];
                 sender.sendMessage(ChatColor.YELLOW + "正在模拟投票: " + testPlayer + " 从 " + testService);
                 VoteEvent event = new VoteEvent(testPlayer, testService, "127.0.0.1", System.currentTimeMillis());
-                Bukkit.getPluginManager().callEvent(event);
+                Bukkit.getAsyncScheduler().runNow(EasyVotePlugin.getInstance(), task -> {
+                    Bukkit.getPluginManager().callEvent(event);
+                });
                 sender.sendMessage(ChatColor.GREEN + "测试投票事件已触发!");
                 break;
                 
