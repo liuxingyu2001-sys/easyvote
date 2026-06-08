@@ -13,7 +13,9 @@ public class EasyVotePlugin extends JavaPlugin {
     private RSAKeyManager keyManager;
     private VoteHistory voteHistory;
     private VoteListener voteListener;
+    private MilestoneTracker milestoneTracker;
     private boolean votifierEnabled;
+    private boolean cumulativeEnabled;
     private boolean debugEnabled;
 
     @Override
@@ -108,6 +110,7 @@ public class EasyVotePlugin extends JavaPlugin {
 
     private void loadConfig() {
         votifierEnabled = getConfig().getBoolean("votifier.enabled", true);
+        cumulativeEnabled = getConfig().getBoolean("votifier.cumulative.enabled", true);
         debugEnabled = getConfig().getBoolean("debug", false);
     }
 
@@ -153,8 +156,9 @@ public class EasyVotePlugin extends JavaPlugin {
         getLogger().info("----------------------------------------");
         getLogger().info("========================================");
         
+        milestoneTracker = new MilestoneTracker(this);
         voteHistory = new VoteHistory(this);
-        voteListener = new VoteListener(this, voteHistory);
+        voteListener = new VoteListener(this, voteHistory, milestoneTracker);
         getServer().getPluginManager().registerEvents(voteListener, this);
         
         String host = getConfig().getString("votifier.host", "0.0.0.0");
@@ -177,6 +181,10 @@ public class EasyVotePlugin extends JavaPlugin {
         return keyManager;
     }
     
+    public MilestoneTracker getMilestoneTracker() {
+        return milestoneTracker;
+    }
+
     public boolean isDebugEnabled() {
         return debugEnabled;
     }

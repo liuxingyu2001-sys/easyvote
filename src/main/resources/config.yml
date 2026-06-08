@@ -53,6 +53,31 @@ votifier:
       - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
       #- "lp user %player% parent addtemp fly 1d accumulate"
     
+  # 累计投票里程碑奖励
+  # 玩家总投票数达到指定次数时触发一次性额外奖励
+  # 每个里程碑每位玩家只触发一次
+  cumulative:
+    # 是否启用累计投票奖励
+    enabled: true
+    
+    # 里程碑列表（按 count 从小到大排列）
+    milestones:
+      - count: 10
+        commands:
+          - "msg %player% &6&l恭喜！&e你已累计投票 &c10 次&e！"
+          - "give %player% diamond 10"
+          - "money give %player% 5000"
+      - count: 50
+        commands:
+          - "msg %player% &6&l恭喜！&e你已累计投票 &c50 次&e！"
+          - "give %player% netherite_ingot 5"
+          - "money give %player% 10000"
+      - count: 100
+        commands:
+          - "msg %player% &6&l恭喜！&e你已累计投票 &c100 次&e！"
+          - "give %player% netherite_block 2"
+          - "lp user %player% parent addtemp vip 7d"
+    
   # 是否在控制台显示详细投票信息
   verbose: false
 

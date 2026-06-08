@@ -19,11 +19,13 @@ public class VoteListener implements Listener {
 
     private final EasyVotePlugin plugin;
     private final VoteHistory voteHistory;
+    private final MilestoneTracker milestoneTracker;
     private final Map<String, List<String>> rewardCommands;
 
-    public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory) {
+    public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory, MilestoneTracker milestoneTracker) {
         this.plugin = plugin;
         this.voteHistory = voteHistory;
+        this.milestoneTracker = milestoneTracker;
         this.rewardCommands = new HashMap<>();
         loadRewards();
     }
@@ -117,6 +119,66 @@ public class VoteListener implements Listener {
             }
         } else {
             plugin.getLogger().warning("未找到 " + playerName + " 的投票奖励配置!");
+        }
+        
+        checkCumulativeMilestones(playerName, serviceName, address, player);
+    }
+    
+    private void checkCumulativeMilestones(String playerName, String serviceName, String address, Player player) {
+        if (!plugin.getConfig().getBoolean("votifier.cumulative.enabled", true)) {
+            return;
+        }
+        
+        var milestonesSection = plugin.getConfig().getList("votifier.cumulative.milestones");
+        if (milestonesSection == null || milestonesSection.isEmpty()) {
+            return;
+        }
+        
+        int totalVotes = voteHistory.getPlayerVoteCount(playerName);
+        long timestamp = System.currentTimeMillis();
+        
+        for (Object obj : milestonesSection) {
+            if (!(obj instanceof Map)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> milestone = (Map<String, Object>) obj;
+            
+            int count;
+            Object countObj = milestone.get("count");
+            if (countObj instanceof Integer) {
+                count = (Integer) countObj;
+            } else if (countObj instanceof Long) {
+                count = ((Long) countObj).intValue();
+            } else {
+                continue;
+            }
+            
+            if (totalVotes < count) {
+                continue;
+            }
+            
+            if (milestoneTracker.isReceived(playerName, count)) {
+                continue;
+            }
+            
+            milestoneTracker.markReceived(playerName, count, timestamp);
+            
+            List<?> rawCommands = (List<?>) milestone.get("commands");
+            if (rawCommands == null || rawCommands.isEmpty()) {
+                continue;
+            }
+            
+            plugin.getLogger().info(playerName + " 达到累计投票里程碑 " + count + " 次！");
+            
+            for (Object cmdObj : rawCommands) {
+                String command = cmdObj.toString();
+                String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
+                final String cmd = processedCommand;
+                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                });
+            }
         }
     }
     
