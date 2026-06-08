@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,15 +25,20 @@ public class MilestoneTracker {
         loadFromFile();
     }
 
-    public boolean isReceived(String playerName, int count) {
-        Set<Integer> milestones = receivedMilestones.get(playerName.toLowerCase());
-        return milestones != null && milestones.contains(count);
-    }
-
-    public void markReceived(String playerName, int count, long timestamp) {
+    /**
+     * Atomically check and mark a milestone. Returns true if this call
+     * actually marked it (first time), false if it was already received.
+     */
+    public boolean markIfNotReceived(String playerName, int count, long timestamp) {
         playerName = playerName.toLowerCase();
-        receivedMilestones.computeIfAbsent(playerName, k -> new HashSet<>()).add(count);
+        Set<Integer> milestones = receivedMilestones.computeIfAbsent(
+            playerName, k -> ConcurrentHashMap.newKeySet()
+        );
+        if (!milestones.add(count)) {
+            return false;
+        }
         saveToFile(playerName, count, timestamp);
+        return true;
     }
 
     public int getPlayerHighestMilestone(String playerName) {
@@ -47,9 +51,8 @@ public class MilestoneTracker {
 
     private void saveToFile(String playerName, int count, long timestamp) {
         try {
-            if (!dataFile.exists()) {
+            if (!dataFile.getParentFile().exists()) {
                 dataFile.getParentFile().mkdirs();
-                dataFile.createNewFile();
             }
 
             try (BufferedWriter writer = new BufferedWriter(
@@ -87,7 +90,7 @@ public class MilestoneTracker {
                     } catch (NumberFormatException e) {
                         continue;
                     }
-                    receivedMilestones.computeIfAbsent(playerName, k -> new HashSet<>()).add(count);
+                    receivedMilestones.computeIfAbsent(playerName, k -> ConcurrentHashMap.newKeySet()).add(count);
                     loadedCount++;
                 }
             }

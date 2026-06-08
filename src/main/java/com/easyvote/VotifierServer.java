@@ -168,7 +168,7 @@ public class VotifierServer {
             plugin.getLogger().info("收到投票: " + username + " 从 " + serviceName);
             
             VoteEvent event = new VoteEvent(username, serviceName, address, timestamp);
-            Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
                 Bukkit.getPluginManager().callEvent(event);
             });
             

@@ -11,8 +11,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 public class VoteListener implements Listener {
@@ -26,7 +26,7 @@ public class VoteListener implements Listener {
         this.plugin = plugin;
         this.voteHistory = voteHistory;
         this.milestoneTracker = milestoneTracker;
-        this.rewardCommands = new HashMap<>();
+        this.rewardCommands = new ConcurrentHashMap<>();
         loadRewards();
     }
 
@@ -158,11 +158,9 @@ public class VoteListener implements Listener {
                 continue;
             }
             
-            if (milestoneTracker.isReceived(playerName, count)) {
+            if (!milestoneTracker.markIfNotReceived(playerName, count, timestamp)) {
                 continue;
             }
-            
-            milestoneTracker.markReceived(playerName, count, timestamp);
             
             List<?> rawCommands = (List<?>) milestone.get("commands");
             if (rawCommands == null || rawCommands.isEmpty()) {

@@ -38,15 +38,14 @@ public class VoteHistory {
     public void addVote(String playerName, String serviceName, String address, long timestamp) {
         playerName = playerName.toLowerCase();
         
-        if (isFirstVoteForService(playerName, serviceName)) {
-            VoteRecord record = new VoteRecord(playerName, serviceName, address, timestamp);
-            playerVotes.computeIfAbsent(playerName, k -> new ArrayList<>()).add(record);
-            saveToFile();
-        }
+        VoteRecord record = new VoteRecord(playerName, serviceName, address, timestamp);
+        playerVotes.computeIfAbsent(playerName, k -> new ArrayList<>()).add(record);
         
         serviceVoteCounts.merge(serviceName.toLowerCase(), 1, Integer::sum);
         playerVoteCounts.merge(playerName, 1, Integer::sum);
         totalVotes++;
+        
+        saveToFile();
     }
 
     public List<VoteRecord> getPlayerVotes(String playerName) {
@@ -129,13 +128,14 @@ public class VoteHistory {
 
     private void saveToFile() {
         try {
-            if (!dataFile.exists()) {
+            if (!dataFile.getParentFile().exists()) {
                 dataFile.getParentFile().mkdirs();
-                dataFile.createNewFile();
             }
             
+            File tempFile = new File(dataFile.getParentFile(), "votes.csv.tmp");
+            
             try (BufferedWriter writer = new BufferedWriter(
-                new OutputStreamWriter(new FileOutputStream(dataFile), StandardCharsets.UTF_8))) {
+                new OutputStreamWriter(new FileOutputStream(tempFile), StandardCharsets.UTF_8))) {
                 
                 writer.write("# 投票记录文件 - 请勿手动编辑");
                 writer.newLine();
@@ -153,6 +153,12 @@ public class VoteHistory {
                     }
                 }
             }
+            
+            if (dataFile.exists()) {
+                dataFile.delete();
+            }
+            tempFile.renameTo(dataFile);
+            
         } catch (IOException e) {
             plugin.getLogger().warning("保存投票记录失败: " + e.getMessage());
         }
