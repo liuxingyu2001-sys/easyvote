@@ -9,6 +9,7 @@ import java.util.Map;
 public class EasyVotePlugin extends JavaPlugin {
 
     private static EasyVotePlugin instance;
+    private DatabaseManager db;
     private VotifierServer votifierServer;
     private RSAKeyManager keyManager;
     private VoteHistory voteHistory;
@@ -42,6 +43,9 @@ public class EasyVotePlugin extends JavaPlugin {
     public void onDisable() {
         if (votifierServer != null) {
             votifierServer.stop();
+        }
+        if (db != null) {
+            db.close();
         }
         getLogger().info("EasyVote 插件已禁用!");
     }
@@ -156,8 +160,11 @@ public class EasyVotePlugin extends JavaPlugin {
         getLogger().info("----------------------------------------");
         getLogger().info("========================================");
         
-        milestoneTracker = new MilestoneTracker(this);
-        voteHistory = new VoteHistory(this);
+        db = new DatabaseManager(this);
+        db.initialize();
+        
+        milestoneTracker = new MilestoneTracker(db);
+        voteHistory = new VoteHistory(db);
         voteListener = new VoteListener(this, voteHistory, milestoneTracker);
         getServer().getPluginManager().registerEvents(voteListener, this);
         

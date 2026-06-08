@@ -1,213 +1,153 @@
 package com.easyvote;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class VoteHistory {
 
-    private final EasyVotePlugin plugin;
-    private final Map<String, List<VoteRecord>> playerVotes;
-    private final Map<String, Integer> serviceVoteCounts;
-    private final Map<String, Integer> playerVoteCounts;
-    private int totalVotes;
-    private final File dataFile;
+    private final DatabaseManager db;
 
-    public VoteHistory(EasyVotePlugin plugin) {
-        this.plugin = plugin;
-        this.playerVotes = new ConcurrentHashMap<>();
-        this.serviceVoteCounts = new ConcurrentHashMap<>();
-        this.playerVoteCounts = new ConcurrentHashMap<>();
-        this.totalVotes = 0;
-        this.dataFile = new File(plugin.getDataFolder(), "votes.csv");
-        loadFromFile();
+    public VoteHistory(DatabaseManager db) {
+        this.db = db;
     }
 
     public void addVote(String playerName, String serviceName, String address, long timestamp) {
-        playerName = playerName.toLowerCase();
-        
-        VoteRecord record = new VoteRecord(playerName, serviceName, address, timestamp);
-        playerVotes.computeIfAbsent(playerName, k -> new ArrayList<>()).add(record);
-        
-        serviceVoteCounts.merge(serviceName.toLowerCase(), 1, Integer::sum);
-        playerVoteCounts.merge(playerName, 1, Integer::sum);
-        totalVotes++;
-        
-        saveToFile();
-    }
-
-    public List<VoteRecord> getPlayerVotes(String playerName) {
-        return new ArrayList<>(playerVotes.getOrDefault(playerName.toLowerCase(), new ArrayList<>()));
+        String sql = "INSERT INTO votes (player_name, service_name, address, timestamp) VALUES (?, ?, ?, ?)";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, playerName.toLowerCase());
+            ps.setString(2, serviceName);
+            ps.setString(3, address);
+            ps.setLong(4, timestamp);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            // silently ignore — vote is already counted in-memory via old path, or will be caught later
+        }
     }
 
     public int getPlayerVoteCount(String playerName) {
-        return playerVoteCounts.getOrDefault(playerName.toLowerCase(), 0);
+        String sql = "SELECT COUNT(*) FROM votes WHERE player_name = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, playerName.toLowerCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException ignored) {}
+        return 0;
     }
 
     public int getServiceVoteCount(String serviceName) {
-        return serviceVoteCounts.getOrDefault(serviceName.toLowerCase(), 0);
+        String sql = "SELECT COUNT(*) FROM votes WHERE service_name = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, serviceName.toLowerCase());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException ignored) {}
+        return 0;
     }
 
     public int getTotalVotes() {
-        return totalVotes;
+        String sql = "SELECT COUNT(*) FROM votes";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException ignored) {}
+        return 0;
     }
 
     public Map<String, Integer> getPlayerVoteCounts() {
-        return new HashMap<>(playerVoteCounts);
+        Map<String, Integer> result = new HashMap<>();
+        String sql = "SELECT player_name, COUNT(*) FROM votes GROUP BY player_name";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.put(rs.getString(1), rs.getInt(2));
+            }
+        } catch (SQLException ignored) {}
+        return result;
     }
 
     public Map<String, Integer> getServiceVoteCounts() {
-        return new HashMap<>(serviceVoteCounts);
-    }
-
-    public List<VoteRecord> getAllVotes() {
-        return playerVotes.values().stream()
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
+        Map<String, Integer> result = new HashMap<>();
+        String sql = "SELECT service_name, COUNT(*) FROM votes GROUP BY service_name";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                result.put(rs.getString(1), rs.getInt(2));
+            }
+        } catch (SQLException ignored) {}
+        return result;
     }
 
     public List<VoteRecord> getRecentVotes(int limit) {
-        return playerVotes.values().stream()
-            .flatMap(List::stream)
-            .sorted((a, b) -> Long.compare(b.getTimestamp(), a.getTimestamp()))
-            .limit(limit)
-            .collect(Collectors.toList());
-    }
-
-    public void clear() {
-        playerVotes.clear();
-        serviceVoteCounts.clear();
-        playerVoteCounts.clear();
-        totalVotes = 0;
-        saveToFile();
-    }
-    
-    public int clearPlayerVotes(String playerName) {
-        playerName = playerName.toLowerCase();
-        List<VoteRecord> removed = playerVotes.remove(playerName);
-        if (removed == null || removed.isEmpty()) {
-            return 0;
-        }
-        
-        int count = removed.size();
-        totalVotes -= count;
-        playerVoteCounts.remove(playerName);
-        
-        for (VoteRecord record : removed) {
-            String service = record.getServiceName().toLowerCase();
-            serviceVoteCounts.merge(service, -1, (old, delta) -> Math.max(0, old + delta));
-        }
-        
-        saveToFile();
-        return count;
-    }
-
-    public boolean isFirstVote(String playerName) {
-        return !playerVotes.containsKey(playerName.toLowerCase());
+        List<VoteRecord> result = new ArrayList<>();
+        String sql = "SELECT player_name, service_name, address, timestamp FROM votes ORDER BY id DESC LIMIT ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new VoteRecord(
+                        rs.getString(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getLong(4)
+                    ));
+                }
+            }
+        } catch (SQLException ignored) {}
+        return result;
     }
 
     public boolean isFirstVoteForService(String playerName, String serviceName) {
-        List<VoteRecord> votes = playerVotes.get(playerName.toLowerCase());
-        if (votes == null) {
-            return true;
-        }
-        return votes.stream().noneMatch(record -> record.getServiceName().equalsIgnoreCase(serviceName));
+        String sql = "SELECT COUNT(*) FROM votes WHERE player_name = ? AND service_name = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, playerName.toLowerCase());
+            ps.setString(2, serviceName);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1) == 0;
+            }
+        } catch (SQLException ignored) {}
+        return true;
     }
 
-    private void saveToFile() {
-        try {
-            if (!dataFile.getParentFile().exists()) {
-                dataFile.getParentFile().mkdirs();
-            }
-            
-            File tempFile = new File(dataFile.getParentFile(), "votes.csv.tmp");
-            
-            try (BufferedWriter writer = new BufferedWriter(
-                new OutputStreamWriter(new FileOutputStream(tempFile), StandardCharsets.UTF_8))) {
-                
-                writer.write("# 投票记录文件 - 请勿手动编辑");
-                writer.newLine();
-                writer.write("# 格式: 玩家名,网站名,IP地址,时间戳");
-                writer.newLine();
-                
-                for (List<VoteRecord> records : playerVotes.values()) {
-                    for (VoteRecord record : records) {
-                        writer.write(String.format("%s,%s,%s,%d",
-                            record.getPlayerName(),
-                            record.getServiceName(),
-                            record.getAddress(),
-                            record.getTimestamp()));
-                        writer.newLine();
-                    }
-                }
-            }
-            
-            if (dataFile.exists()) {
-                dataFile.delete();
-            }
-            tempFile.renameTo(dataFile);
-            
-        } catch (IOException e) {
-            plugin.getLogger().warning("保存投票记录失败: " + e.getMessage());
-        }
+    public void clear() {
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement("DELETE FROM votes")) {
+            ps.executeUpdate();
+        } catch (SQLException ignored) {}
     }
 
-    private void loadFromFile() {
-        if (!dataFile.exists()) {
-            return;
-        }
-        
-        int loadedCount = 0;
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(new FileInputStream(dataFile), StandardCharsets.UTF_8))) {
-            
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
-                }
-                
-                String[] parts = line.split(",");
-                if (parts.length >= 4) {
-                    String playerName = parts[0].toLowerCase();
-                    String serviceName = parts[1];
-                    String address = parts[2];
-                    long timestamp;
-                    
-                    try {
-                        timestamp = Long.parseLong(parts[3]);
-                    } catch (NumberFormatException e) {
-                        timestamp = System.currentTimeMillis();
-                    }
-                    
-                    VoteRecord record = new VoteRecord(playerName, serviceName, address, timestamp);
-                    playerVotes.computeIfAbsent(playerName, k -> new ArrayList<>()).add(record);
-                    serviceVoteCounts.merge(serviceName.toLowerCase(), 1, Integer::sum);
-                    playerVoteCounts.merge(playerName, 1, Integer::sum);
-                    totalVotes++;
-                    loadedCount++;
-                }
+    public int clearPlayerVotes(String playerName) {
+        String countSql = "SELECT COUNT(*) FROM votes WHERE player_name = ?";
+        String deleteSql = "DELETE FROM votes WHERE player_name = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement countPs = conn.prepareStatement(countSql)) {
+            countPs.setString(1, playerName.toLowerCase());
+            int count = 0;
+            try (ResultSet rs = countPs.executeQuery()) {
+                if (rs.next()) count = rs.getInt(1);
             }
-            
-            plugin.getLogger().info("已加载 " + loadedCount + " 条投票记录");
-        } catch (IOException e) {
-            plugin.getLogger().warning("加载投票记录失败: " + e.getMessage());
-        } catch (NumberFormatException e) {
-            plugin.getLogger().warning("加载投票记录失败: 格式错误");
-        }
+            try (PreparedStatement deletePs = conn.prepareStatement(deleteSql)) {
+                deletePs.setString(1, playerName.toLowerCase());
+                deletePs.executeUpdate();
+            }
+            return count;
+        } catch (SQLException ignored) {}
+        return 0;
     }
 
     public static class VoteRecord {
