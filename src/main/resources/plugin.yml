@@ -5,7 +5,7 @@ api-version: 1.21
 folia-supported: true
 libraries:
   - org.xerial:sqlite-jdbc:3.49.1.0
-author: liuxingyu
+author: liuxingyu2001
 description: 轻量级 Votifier 投票监听插件，支持自定义投票奖励
 softdepend: []
 commands:
