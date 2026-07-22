@@ -22,7 +22,7 @@ public class DatabaseManager {
         this.dbFile = new File(plugin.getDataFolder(), "data.db");
     }
 
-    public Connection getConnection() throws SQLException {
+    public synchronized Connection getConnection() throws SQLException {
         if (connection == null || connection.isClosed()) {
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
         }

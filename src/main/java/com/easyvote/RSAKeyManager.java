@@ -1,7 +1,6 @@
 package com.easyvote;
 
 import javax.crypto.Cipher;
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -38,7 +37,7 @@ public class RSAKeyManager {
     public String getPrivateKeyString() {
         return Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
     }
-    
+
     public String getPublicKeyPEM() {
         String base64 = Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
         StringBuilder pem = new StringBuilder();
@@ -64,42 +63,17 @@ public class RSAKeyManager {
 
     public String decryptBytes(byte[] encryptedData) throws Exception {
         try {
-            Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
-            cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
-            
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            int blockSize = 256;
-            int offset = 0;
-            
-            while (offset < encryptedData.length) {
-                int length = Math.min(blockSize, encryptedData.length - offset);
-                byte[] decryptedBlock = cipher.doFinal(encryptedData, offset, length);
-                outputStream.write(decryptedBlock);
-                offset += length;
-            }
-            
-            return outputStream.toString(StandardCharsets.UTF_8.name()).trim();
+            return decryptWithCipher(encryptedData, "RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
         } catch (Exception e) {
-            return decryptWithPKCS1Padding(encryptedData);
+            return decryptWithCipher(encryptedData, "RSA/ECB/PKCS1Padding");
         }
     }
-    
-    private String decryptWithPKCS1Padding(byte[] encryptedData) throws Exception {
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+
+    private String decryptWithCipher(byte[] encryptedData, String transformation) throws Exception {
+        Cipher cipher = Cipher.getInstance(transformation);
         cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
-        
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        int blockSize = 256;
-        int offset = 0;
-        
-        while (offset < encryptedData.length) {
-            int length = Math.min(blockSize, encryptedData.length - offset);
-            byte[] decryptedBlock = cipher.doFinal(encryptedData, offset, length);
-            outputStream.write(decryptedBlock);
-            offset += length;
-        }
-        
-        return outputStream.toString(StandardCharsets.UTF_8.name()).trim();
+        byte[] decrypted = cipher.doFinal(encryptedData);
+        return new String(decrypted, StandardCharsets.UTF_8).trim();
     }
 
     private KeyPair loadKeyPair(String publicKey, String privateKey) throws Exception {
@@ -107,22 +81,22 @@ public class RSAKeyManager {
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
             .replaceAll("\\s", "");
-        
+
         String cleanPrivateKey = privateKey
             .replace("-----BEGIN PRIVATE KEY-----", "")
             .replace("-----END PRIVATE KEY-----", "")
             .replaceAll("\\s", "");
-        
+
         byte[] publicKeyBytes = Base64.getDecoder().decode(cleanPublicKey);
         byte[] privateKeyBytes = Base64.getDecoder().decode(cleanPrivateKey);
-        
+
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
         PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-        
+
         PublicKey pubKey = keyFactory.generatePublic(publicKeySpec);
         PrivateKey privKey = keyFactory.generatePrivate(privateKeySpec);
-        
+
         return new KeyPair(pubKey, privKey);
     }
 }

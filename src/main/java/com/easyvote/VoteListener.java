@@ -67,15 +67,16 @@ public class VoteListener implements Listener {
         String serviceName = event.getServiceName();
         String address = event.getAddress();
         long timestamp = event.getTimestamp();
-        
-        if (plugin.isDebugEnabled()) {
-            saveDebugVoteInfo(playerName, serviceName, address, timestamp);
-        }
-        
-        boolean isFirstVote = voteHistory.isFirstVoteForService(playerName, serviceName);
-        
+
+        String serviceKey = mapServiceName(serviceName);
+        boolean isFirstVote = voteHistory.isFirstVoteForService(playerName, serviceKey);
+
         voteHistory.addVote(playerName, serviceName, address, timestamp);
-        
+
+        if (plugin.isDebugEnabled()) {
+            saveDebugVoteInfo(playerName, serviceName, address, timestamp, isFirstVote);
+        }
+
         // Schedule reward dispatch on the global region thread (Folia-safe)
         Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
             Player player = Bukkit.getPlayerExact(playerName);
@@ -83,44 +84,42 @@ public class VoteListener implements Listener {
                 plugin.getLogger().info("玩家 " + playerName + " 不在线，跳过奖励");
                 return;
             }
-            
-            String serviceKey = mapServiceName(serviceName);
+
             String firstVoteKey = "first-vote-" + serviceKey;
             plugin.getLogger().info("[投票奖励] 玩家: " + playerName + ", 网站: " + serviceName + ", 映射后Key: " + serviceKey + ", 首次Key: " + firstVoteKey);
-            
+
             List<String> commands = null;
             String rewardType = "";
-            
+
             if (isFirstVote) {
                 commands = rewardCommands.get(firstVoteKey);
                 if (commands != null && !commands.isEmpty()) {
                     rewardType = "首次奖励";
                 }
             }
-            
+
             if (commands == null || commands.isEmpty()) {
                 commands = rewardCommands.get(serviceKey);
                 if (commands != null && !commands.isEmpty()) {
                     rewardType = "常规奖励";
                 }
             }
-            
+
             if (commands == null || commands.isEmpty()) {
                 commands = rewardCommands.get("default");
                 rewardType = "默认奖励";
             }
-            
+
             if (commands != null && !commands.isEmpty()) {
                 plugin.getLogger().info(playerName + " 从 " + serviceName + " 投票，发放" + rewardType);
                 for (String command : commands) {
                     String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
-                    final String cmd = processedCommand;
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
                 }
             } else {
                 plugin.getLogger().warning("未找到 " + playerName + " 的投票奖励配置!");
             }
-            
+
             checkCumulativeMilestones(playerName, serviceName, address, player);
         });
     }
@@ -203,17 +202,17 @@ public class VoteListener implements Listener {
             .replace("%uuid%", player.getUniqueId().toString());
     }
     
-    private void saveDebugVoteInfo(String playerName, String serviceName, String address, long timestamp) {
+    private void saveDebugVoteInfo(String playerName, String serviceName, String address, long timestamp, boolean isFirstVote) {
         try {
             File debugDir = new File(plugin.getDataFolder(), "debug");
             if (!debugDir.exists()) {
                 debugDir.mkdirs();
             }
-            
+
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
             String fileName = "vote_" + playerName + "_" + sdf.format(new Date(timestamp)) + ".txt";
             File debugFile = new File(debugDir, fileName);
-            
+
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(debugFile))) {
                 writer.write("=== 投票调试信息 ===");
                 writer.newLine();
@@ -229,7 +228,7 @@ public class VoteListener implements Listener {
                 writer.write("时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date(timestamp)));
                 writer.newLine();
                 writer.newLine();
-                writer.write("是否为首次投票: " + (voteHistory.isFirstVoteForService(playerName, serviceName) ? "是" : "否"));
+                writer.write("是否为首次投票: " + (isFirstVote ? "是" : "否"));
                 writer.newLine();
                 writer.write("玩家总投票数: " + voteHistory.getPlayerVoteCount(playerName));
                 writer.newLine();
@@ -237,7 +236,7 @@ public class VoteListener implements Listener {
                 writer.newLine();
                 writer.write("总投票数: " + voteHistory.getTotalVotes());
             }
-            
+
             plugin.getLogger().info("[DEBUG] 投票信息已保存: " + debugFile.getName());
         } catch (IOException e) {
             plugin.getLogger().warning("[DEBUG] 保存投票信息失败: " + e.getMessage());
