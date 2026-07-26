@@ -15,19 +15,15 @@ public class EasyVoteTabCompleter implements TabCompleter {
     private static final List<String> SUB_COMMANDS = Arrays.asList(
         "reload", "pubkey", "votestats", "testvote", "clearvotes"
     );
-    
-    private static final List<String> VOTE_SERVICES = Arrays.asList(
-        "mczfw", "wdsjfwq", "list.mczfw.com", "www.mczfw.com", "www.wdsjfwq.com"
-    );
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
-        
+
         if (!sender.hasPermission("easyvote.admin")) {
             return completions;
         }
-        
+
         if (args.length == 1) {
             String subCommand = args[0].toLowerCase();
             completions.addAll(SUB_COMMANDS.stream()
@@ -35,7 +31,7 @@ public class EasyVoteTabCompleter implements TabCompleter {
                 .collect(Collectors.toList()));
         } else if (args.length == 2) {
             String subCommand = args[0].toLowerCase();
-            
+
             if ("testvote".equals(subCommand) || "clearvotes".equals(subCommand)) {
                 String playerName = args[1].toLowerCase();
                 for (Player player : sender.getServer().getOnlinePlayers()) {
@@ -52,17 +48,8 @@ public class EasyVoteTabCompleter implements TabCompleter {
                     }
                 }
             }
-        } else if (args.length == 3) {
-            String subCommand = args[0].toLowerCase();
-            
-            if ("testvote".equals(subCommand)) {
-                String serviceName = args[2].toLowerCase();
-                completions.addAll(VOTE_SERVICES.stream()
-                    .filter(service -> service.startsWith(serviceName))
-                    .collect(Collectors.toList()));
-            }
         }
-        
+
         return completions;
     }
 }
