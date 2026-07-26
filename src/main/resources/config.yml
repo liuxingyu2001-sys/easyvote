@@ -23,35 +23,18 @@ votifier:
   #   %service% - 投票网站名称
   #   %address% - 投票来源 IP
   #   %uuid% - 玩家 UUID
-  # 
-  # 注意：键名不要包含点号(.)，使用简短名称即可
-  # 例如：mczfw.com 使用 mczfw，first-vote-mczfw.com 使用 first-vote-mczfw
-  # 投票奖励配置
-
+  #
+  # 只区分首次投票和普通投票，不区分投票网站
   rewards:
-    # 找服网首次投票奖励
-    first-vote-mczfw:
-      - "serveritem give xcg 1 %player%"
-      - "msg %player% &6&l这是你在找服网首次投票 感谢你的投票！"
-      - "msg %player% &7不到账请检查找服网的游戏ID是否正确以及玩家是否在线"
-    # 找服网常规奖励
-    mczfw:
+    # 首次投票奖励（玩家第一次投票时触发）
+    first-vote:
+      - "msg %player% &6&l感谢你的首次投票！"
+      - "money give %player% 3000 -s"
+      - "give %player% diamond 3"
+    # 普通投票奖励（非首次投票时触发）
+    vote:
       - "money give %player% 2000 -s"
       - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
-      
-    first-vote-wdsjfwq:
-      - "msg %player% &6&l恭喜你！这是你在我的世界找服网！感谢你的投票！"
-      - "luckypeach give %player% peach_2 10"
-      - "money give %player% 3300 -s"
-
-    wdsjfwq:
-      - "money give %player% 2000 -s"
-      - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
-
-    default:
-      - "money give %player% 2000 -s"
-      - "msg %player% &A感谢你为服务器投票 &6&l获得 2000 金币！"
-      #- "lp user %player% parent addtemp fly 1d accumulate"
     
   # 累计投票里程碑奖励
   # 玩家总投票数达到指定次数时触发一次性额外奖励

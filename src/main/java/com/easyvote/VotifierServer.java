@@ -258,7 +258,12 @@ public class VotifierServer {
                     break;
                 }
             }
-            
+
+            if (content.length() - i < 32 + 32) {
+                plugin.getLogger().warning("[" + clientAddress + "] 自定义投票数据字段不足");
+                return;
+            }
+
             String serviceName = content.substring(i, i + 32).trim();
             i += 32;
             

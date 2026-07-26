@@ -56,7 +56,7 @@ public class EasyVotePlugin extends JavaPlugin {
         if (!getConfig().contains("votifier")) {
             getConfig().set("votifier.enabled", true);
             getConfig().set("votifier.host", "0.0.0.0");
-            getConfig().set("votifier.port", 8192);
+            getConfig().set("votifier.port", 10022);
             getConfig().set("votifier.public-key", "");
             getConfig().set("votifier.private-key", "");
             getConfig().set("votifier.max-threads", 10);
@@ -65,45 +65,26 @@ public class EasyVotePlugin extends JavaPlugin {
         }
         
         var rewardsSection = getConfig().getConfigurationSection("votifier.rewards");
-        
+
         if (rewardsSection == null) {
             Map<String, Object> rewardsMap = new LinkedHashMap<>();
-            
-            rewardsMap.put("default", List.of(
-                "msg %player% &a感谢你的投票！",
-                "money give %player% 1000"
-            ));
-            
-            rewardsMap.put("first-vote-mczfw", List.of(
-                "msg %player% &6&l恭喜你！这是你在找服网的第一次投票！",
+
+            rewardsMap.put("first-vote", List.of(
+                "msg %player% &6&l感谢你的首次投票！",
                 "money give %player% 3000",
-                "give %player% diamond 3",
-                "titlemsg %player% &6&l首次投票 &a&l+3000金币"
+                "give %player% diamond 3"
             ));
-            
-            rewardsMap.put("mczfw", List.of(
-                "msg %player% &a感谢在找服网投票！",
+
+            rewardsMap.put("vote", List.of(
                 "money give %player% 2000",
-                "give %player% diamond 1"
+                "msg %player% &a感谢你为服务器投票！"
             ));
-            
-            rewardsMap.put("first-vote-wdsjfwq", List.of(
-                "msg %player% &6&l恭喜你！这是你在服务器站的第一次投票！",
-                "money give %player% 2500",
-                "give %player% diamond 2",
-                "titlemsg %player% &6&l首次投票 &a&l+2500金币"
-            ));
-            
-            rewardsMap.put("wdsjfwq", List.of(
-                "msg %player% &a感谢在服务器站投票！",
-                "money give %player% 1500"
-            ));
-            
+
             getConfig().set("votifier.rewards", rewardsMap);
             needsSave = true;
             getLogger().info("已生成投票奖励配置");
         } else {
-            getLogger().info("已加载投票奖励配置 (共 " + rewardsSection.getKeys(false).size() + " 个网站)");
+            getLogger().info("已加载投票奖励配置");
         }
         
         if (needsSave) {

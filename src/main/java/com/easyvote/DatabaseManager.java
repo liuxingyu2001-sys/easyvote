@@ -68,6 +68,20 @@ public class DatabaseManager {
                 ")"
             );
 
+            stmt.execute(
+                "CREATE TABLE IF NOT EXISTS pending_rewards (" +
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "  player_name TEXT NOT NULL," +
+                "  service_name TEXT NOT NULL," +
+                "  address TEXT," +
+                "  timestamp INTEGER NOT NULL," +
+                "  first_vote INTEGER NOT NULL DEFAULT 0" +
+                ")"
+            );
+            stmt.execute(
+                "CREATE INDEX IF NOT EXISTS idx_pending_player ON pending_rewards(player_name)"
+            );
+
             stmt.close();
             migrateCsvIfExists();
 

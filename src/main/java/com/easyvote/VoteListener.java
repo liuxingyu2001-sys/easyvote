@@ -4,15 +4,16 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 public class VoteListener implements Listener {
@@ -20,41 +21,49 @@ public class VoteListener implements Listener {
     private final EasyVotePlugin plugin;
     private final VoteHistory voteHistory;
     private final MilestoneTracker milestoneTracker;
-    private final Map<String, List<String>> rewardCommands;
+    private volatile List<String> firstVoteCommands = List.of();
+    private volatile List<String> voteCommands = List.of();
 
     public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory, MilestoneTracker milestoneTracker) {
         this.plugin = plugin;
         this.voteHistory = voteHistory;
         this.milestoneTracker = milestoneTracker;
-        this.rewardCommands = new ConcurrentHashMap<>();
         loadRewards();
     }
 
     private void loadRewards() {
-        rewardCommands.clear();
-        
         var rewardsSection = plugin.getConfig().getConfigurationSection("votifier.rewards");
         if (rewardsSection == null) {
-            plugin.getLogger().warning("未找到默认奖励配置 (default)");
+            plugin.getLogger().warning("未找到投票奖励配置 (votifier.rewards)");
             return;
         }
-        
-        for (String serviceName : rewardsSection.getKeys(false)) {
-            List<?> rawList = rewardsSection.getList(serviceName);
-            if (rawList != null) {
-                List<String> commands = rawList.stream()
-                    .map(Object::toString)
-                    .collect(java.util.stream.Collectors.toList());
-                rewardCommands.put(serviceName.toLowerCase(), commands);
-                plugin.getLogger().info("加载奖励配置: " + serviceName + " (" + commands.size() + " 条命令)");
-            }
+
+        List<String> newFirstVote = loadCommandList(rewardsSection, "first-vote");
+        List<String> newVote = loadCommandList(rewardsSection, "vote");
+
+        if (newFirstVote.isEmpty()) {
+            plugin.getLogger().warning("未找到首次投票奖励配置 (first-vote)");
         }
-        
-        if (!rewardCommands.containsKey("default")) {
-            plugin.getLogger().warning("未找到默认奖励配置 (default)");
+        if (newVote.isEmpty()) {
+            plugin.getLogger().warning("未找到普通投票奖励配置 (vote)");
         }
-        
-        plugin.getLogger().info("已加载 " + rewardCommands.size() + " 个投票奖励配置");
+
+        this.firstVoteCommands = newFirstVote;
+        this.voteCommands = newVote;
+
+        plugin.getLogger().info("已加载投票奖励配置: 首次 " + newFirstVote.size() + " 条, 普通 " + newVote.size() + " 条");
+    }
+
+    private List<String> loadCommandList(org.bukkit.configuration.ConfigurationSection section, String key) {
+        List<?> rawList = section.getList(key);
+        if (rawList == null) {
+            return List.of();
+        }
+        List<String> commands = new ArrayList<>();
+        for (Object obj : rawList) {
+            commands.add(obj.toString());
+        }
+        return commands;
     }
 
     public void reloadRewards() {
@@ -68,8 +77,7 @@ public class VoteListener implements Listener {
         String address = event.getAddress();
         long timestamp = event.getTimestamp();
 
-        String serviceKey = mapServiceName(serviceName);
-        boolean isFirstVote = voteHistory.isFirstVoteForService(playerName, serviceKey);
+        boolean isFirstVote = voteHistory.getPlayerVoteCount(playerName) == 0;
 
         voteHistory.addVote(playerName, serviceName, address, timestamp);
 
@@ -77,73 +85,79 @@ public class VoteListener implements Listener {
             saveDebugVoteInfo(playerName, serviceName, address, timestamp, isFirstVote);
         }
 
-        // Schedule reward dispatch on the global region thread (Folia-safe)
         Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
             Player player = Bukkit.getPlayerExact(playerName);
             if (player == null || !player.isOnline()) {
-                plugin.getLogger().info("玩家 " + playerName + " 不在线，跳过奖励");
+                plugin.getLogger().info("玩家 " + playerName + " 不在线，奖励已存入待发放队列");
+                voteHistory.addPendingReward(playerName, serviceName, address, timestamp, isFirstVote);
                 return;
             }
 
-            String firstVoteKey = "first-vote-" + serviceKey;
-            plugin.getLogger().info("[投票奖励] 玩家: " + playerName + ", 网站: " + serviceName + ", 映射后Key: " + serviceKey + ", 首次Key: " + firstVoteKey);
-
-            List<String> commands = null;
-            String rewardType = "";
-
-            if (isFirstVote) {
-                commands = rewardCommands.get(firstVoteKey);
-                if (commands != null && !commands.isEmpty()) {
-                    rewardType = "首次奖励";
-                }
-            }
-
-            if (commands == null || commands.isEmpty()) {
-                commands = rewardCommands.get(serviceKey);
-                if (commands != null && !commands.isEmpty()) {
-                    rewardType = "常规奖励";
-                }
-            }
-
-            if (commands == null || commands.isEmpty()) {
-                commands = rewardCommands.get("default");
-                rewardType = "默认奖励";
-            }
-
-            if (commands != null && !commands.isEmpty()) {
-                plugin.getLogger().info(playerName + " 从 " + serviceName + " 投票，发放" + rewardType);
-                for (String command : commands) {
-                    String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
-                }
-            } else {
-                plugin.getLogger().warning("未找到 " + playerName + " 的投票奖励配置!");
-            }
-
+            dispatchRewards(player, playerName, serviceName, address, isFirstVote);
             checkCumulativeMilestones(playerName, serviceName, address, player);
         });
     }
-    
+
+    private void dispatchRewards(Player player, String playerName, String serviceName, String address, boolean isFirstVote) {
+        List<String> commands = isFirstVote ? firstVoteCommands : voteCommands;
+        String rewardType = isFirstVote ? "首次投票奖励" : "投票奖励";
+
+        if (!commands.isEmpty()) {
+            plugin.getLogger().info(playerName + " 投票，发放" + rewardType);
+            for (String command : commands) {
+                String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
+            }
+        } else {
+            plugin.getLogger().warning("未配置" + rewardType + "!");
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        String playerName = player.getName();
+
+        List<VoteHistory.PendingReward> pending = voteHistory.getPendingRewards(playerName);
+        if (pending.isEmpty()) {
+            return;
+        }
+
+        Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+            if (!player.isOnline()) {
+                return;
+            }
+
+            plugin.getLogger().info("玩家 " + playerName + " 上线，补发 " + pending.size() + " 条离线投票奖励");
+
+            for (VoteHistory.PendingReward reward : pending) {
+                dispatchRewards(player, playerName, reward.getServiceName(), reward.getAddress(), reward.isFirstVote());
+                checkCumulativeMilestones(playerName, reward.getServiceName(), reward.getAddress(), player);
+                voteHistory.deletePendingReward(reward.getId());
+            }
+        });
+    }
+
     private void checkCumulativeMilestones(String playerName, String serviceName, String address, Player player) {
         if (!plugin.getConfig().getBoolean("votifier.cumulative.enabled", true)) {
             return;
         }
-        
+
         var milestonesSection = plugin.getConfig().getList("votifier.cumulative.milestones");
         if (milestonesSection == null || milestonesSection.isEmpty()) {
             return;
         }
-        
+
         int totalVotes = voteHistory.getPlayerVoteCount(playerName);
         long timestamp = System.currentTimeMillis();
-        
+
         for (Object obj : milestonesSection) {
             if (!(obj instanceof Map)) {
                 continue;
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> milestone = (Map<String, Object>) obj;
-            
+
             int count;
             Object countObj = milestone.get("count");
             if (countObj instanceof Integer) {
@@ -153,44 +167,28 @@ public class VoteListener implements Listener {
             } else {
                 continue;
             }
-            
+
             if (totalVotes < count) {
                 continue;
             }
-            
+
             if (!milestoneTracker.markIfNotReceived(playerName, count, timestamp)) {
                 continue;
             }
-            
+
             List<?> rawCommands = (List<?>) milestone.get("commands");
             if (rawCommands == null || rawCommands.isEmpty()) {
                 continue;
             }
-            
+
             plugin.getLogger().info(playerName + " 达到累计投票里程碑 " + count + " 次！");
-            
+
             for (Object cmdObj : rawCommands) {
                 String command = cmdObj.toString();
                 String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
             }
         }
-    }
-    
-    private String mapServiceName(String serviceName) {
-        String lower = serviceName.toLowerCase();
-        
-        if (lower.contains("mczfw")) {
-            return "mczfw";
-        }
-        if (lower.contains("服务器站") || lower.contains("wdsjfwq")) {
-            return "wdsjfwq";
-        }
-        if (lower.contains(".")) {
-            return lower.split("\\.")[0];
-        }
-        
-        return lower;
     }
 
     private String replaceVariables(String command, String playerName, String serviceName, String address, Player player) {
@@ -201,7 +199,7 @@ public class VoteListener implements Listener {
             .replace("%address%", address)
             .replace("%uuid%", player.getUniqueId().toString());
     }
-    
+
     private void saveDebugVoteInfo(String playerName, String serviceName, String address, long timestamp, boolean isFirstVote) {
         try {
             File debugDir = new File(plugin.getDataFolder(), "debug");
@@ -232,9 +230,7 @@ public class VoteListener implements Listener {
                 writer.newLine();
                 writer.write("玩家总投票数: " + voteHistory.getPlayerVoteCount(playerName));
                 writer.newLine();
-                writer.write("该网站总投票数: " + voteHistory.getServiceVoteCount(serviceName));
-                writer.newLine();
-                writer.write("总投票数: " + voteHistory.getTotalVotes());
+                writer.write("服务器总投票数: " + voteHistory.getTotalVotes());
             }
 
             plugin.getLogger().info("[DEBUG] 投票信息已保存: " + debugFile.getName());
