@@ -86,26 +86,35 @@ public class VoteListener implements Listener {
         }
 
         Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-            Player player = Bukkit.getPlayerExact(playerName);
-            if (player == null || !player.isOnline()) {
+            Player player = findOnlinePlayer(playerName);
+            if (player == null) {
                 plugin.getLogger().info("玩家 " + playerName + " 不在线，奖励已存入待发放队列");
                 voteHistory.addPendingReward(playerName, serviceName, address, timestamp, isFirstVote);
                 return;
             }
 
-            dispatchRewards(player, playerName, serviceName, address, isFirstVote);
-            checkCumulativeMilestones(playerName, serviceName, address, player);
+            dispatchRewards(player, serviceName, address, isFirstVote);
+            checkCumulativeMilestones(player.getName(), serviceName, address, player);
         });
     }
 
-    private void dispatchRewards(Player player, String playerName, String serviceName, String address, boolean isFirstVote) {
+    private Player findOnlinePlayer(String name) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p.getName().equalsIgnoreCase(name)) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    private void dispatchRewards(Player player, String serviceName, String address, boolean isFirstVote) {
         List<String> commands = isFirstVote ? firstVoteCommands : voteCommands;
         String rewardType = isFirstVote ? "首次投票奖励" : "投票奖励";
 
         if (!commands.isEmpty()) {
-            plugin.getLogger().info(playerName + " 投票，发放" + rewardType);
+            plugin.getLogger().info(player.getName() + " 投票，发放" + rewardType);
             for (String command : commands) {
-                String processedCommand = replaceVariables(command, playerName, serviceName, address, player);
+                String processedCommand = replaceVariables(command, player.getName(), serviceName, address, player);
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), processedCommand);
             }
         } else {
@@ -131,7 +140,7 @@ public class VoteListener implements Listener {
             plugin.getLogger().info("玩家 " + playerName + " 上线，补发 " + pending.size() + " 条离线投票奖励");
 
             for (VoteHistory.PendingReward reward : pending) {
-                dispatchRewards(player, playerName, reward.getServiceName(), reward.getAddress(), reward.isFirstVote());
+                dispatchRewards(player, reward.getServiceName(), reward.getAddress(), reward.isFirstVote());
                 checkCumulativeMilestones(playerName, reward.getServiceName(), reward.getAddress(), player);
                 voteHistory.deletePendingReward(reward.getId());
             }
