@@ -6,7 +6,7 @@ votifier:
   # Votifier 服务器监听地址
   host: 0.0.0.0
   
-  # Votifier 服务器端口（默认 8192）
+  # Votifier 服务器端口（默认 10022）
   port: 10022
   
   # RSA 密钥对（首次运行自动生成，请勿手动修改）
@@ -15,6 +15,9 @@ votifier:
   
   # 最大线程数（处理投票请求）
   max-threads: 10
+
+  # 玩家进入服务器后，等待多少秒再补发离线投票奖励
+  join-reward-delay-seconds: 5
   
   # 投票奖励配置
   # 支持的变量：

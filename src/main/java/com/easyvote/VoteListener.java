@@ -14,7 +14,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class VoteListener implements Listener {
 
@@ -23,6 +26,7 @@ public class VoteListener implements Listener {
     private final MilestoneTracker milestoneTracker;
     private volatile List<String> firstVoteCommands = List.of();
     private volatile List<String> voteCommands = List.of();
+    private final Set<String> pendingRewardDispatches = ConcurrentHashMap.newKeySet();
 
     public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory, MilestoneTracker milestoneTracker) {
         this.plugin = plugin;
@@ -71,7 +75,7 @@ public class VoteListener implements Listener {
     }
 
     @EventHandler
-    public void onVote(VoteEvent event) {
+    public synchronized void onVote(VoteEvent event) {
         String playerName = event.getPlayerName();
         String serviceName = event.getServiceName();
         String address = event.getAddress();
@@ -124,27 +128,42 @@ public class VoteListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        String playerName = player.getName();
-
-        List<VoteHistory.PendingReward> pending = voteHistory.getPendingRewards(playerName);
-        if (pending.isEmpty()) {
+        String playerName = event.getPlayer().getName();
+        String playerKey = playerName.toLowerCase(Locale.ROOT);
+        if (!pendingRewardDispatches.add(playerKey)) {
             return;
         }
 
-        Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-            if (!player.isOnline()) {
-                return;
-            }
+        long delaySeconds = Math.max(0L,
+            plugin.getConfig().getLong("votifier.join-reward-delay-seconds", 5L));
+        long delayTicks = delaySeconds > Long.MAX_VALUE / 20L
+            ? Long.MAX_VALUE
+            : delaySeconds * 20L;
 
-            plugin.getLogger().info("玩家 " + playerName + " 上线，补发 " + pending.size() + " 条离线投票奖励");
+        Bukkit.getGlobalRegionScheduler().runDelayed(plugin, task -> {
+            try {
+                Player player = findOnlinePlayer(playerName);
+                if (player == null) {
+                    return;
+                }
 
-            for (VoteHistory.PendingReward reward : pending) {
-                dispatchRewards(player, reward.getServiceName(), reward.getAddress(), reward.isFirstVote());
-                checkCumulativeMilestones(playerName, reward.getServiceName(), reward.getAddress(), player);
-                voteHistory.deletePendingReward(reward.getId());
+                // Read at execution time so votes received during the join delay are not lost.
+                List<VoteHistory.PendingReward> pending = voteHistory.getPendingRewards(playerName);
+                if (pending.isEmpty()) {
+                    return;
+                }
+
+                plugin.getLogger().info("玩家 " + playerName + " 上线，补发 " + pending.size() + " 条离线投票奖励");
+
+                for (VoteHistory.PendingReward reward : pending) {
+                    dispatchRewards(player, reward.getServiceName(), reward.getAddress(), reward.isFirstVote());
+                    checkCumulativeMilestones(playerName, reward.getServiceName(), reward.getAddress(), player);
+                    voteHistory.deletePendingReward(reward.getId());
+                }
+            } finally {
+                pendingRewardDispatches.remove(playerKey);
             }
-        });
+        }, delayTicks);
     }
 
     private void checkCumulativeMilestones(String playerName, String serviceName, String address, Player player) {
@@ -169,10 +188,8 @@ public class VoteListener implements Listener {
 
             int count;
             Object countObj = milestone.get("count");
-            if (countObj instanceof Integer) {
-                count = (Integer) countObj;
-            } else if (countObj instanceof Long) {
-                count = ((Long) countObj).intValue();
+            if (countObj instanceof Number number) {
+                count = number.intValue();
             } else {
                 continue;
             }
@@ -181,12 +198,13 @@ public class VoteListener implements Listener {
                 continue;
             }
 
-            if (!milestoneTracker.markIfNotReceived(playerName, count, timestamp)) {
+            Object commandsObj = milestone.get("commands");
+            if (!(commandsObj instanceof List<?> rawCommands) || rawCommands.isEmpty()) {
+                // Do not consume a milestone that has no usable reward commands.
                 continue;
             }
 
-            List<?> rawCommands = (List<?>) milestone.get("commands");
-            if (rawCommands == null || rawCommands.isEmpty()) {
+            if (!milestoneTracker.markIfNotReceived(playerName, count, timestamp)) {
                 continue;
             }
 

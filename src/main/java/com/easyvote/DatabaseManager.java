@@ -10,6 +10,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
 
 public class DatabaseManager {
 
@@ -125,7 +126,7 @@ public class DatabaseManager {
 
                 String[] parts = line.split(",");
                 if (parts.length >= 4) {
-                    ps.setString(1, parts[0].toLowerCase());
+                    ps.setString(1, parts[0].toLowerCase(Locale.ROOT));
                     ps.setString(2, parts[1]);
                     ps.setString(3, parts.length >= 3 ? parts[2] : "");
                     ps.setLong(4, Long.parseLong(parts[3]));
@@ -158,7 +159,7 @@ public class DatabaseManager {
 
                 String[] parts = line.split(",");
                 if (parts.length >= 2) {
-                    ps.setString(1, parts[0].toLowerCase());
+                    ps.setString(1, parts[0].toLowerCase(Locale.ROOT));
                     ps.setInt(2, Integer.parseInt(parts[1]));
                     ps.setLong(3, parts.length >= 3 ? Long.parseLong(parts[2]) : System.currentTimeMillis());
                     ps.addBatch();

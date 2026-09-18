@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class VoteHistory {
@@ -22,7 +23,7 @@ public class VoteHistory {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 ps.setString(2, serviceName);
                 ps.setString(3, address);
                 ps.setLong(4, timestamp);
@@ -36,7 +37,7 @@ public class VoteHistory {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next() ? rs.getInt(1) : 0;
                 }
@@ -128,7 +129,7 @@ public class VoteHistory {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 ps.setString(2, serviceName);
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next() && rs.getInt(1) == 0;
@@ -141,14 +142,18 @@ public class VoteHistory {
     public void clear() {
         try {
             Connection conn = db.getConnection();
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM votes")) {
-                ps.executeUpdate();
+            try (PreparedStatement votes = conn.prepareStatement("DELETE FROM votes");
+                 PreparedStatement milestones = conn.prepareStatement("DELETE FROM milestones");
+                 PreparedStatement pending = conn.prepareStatement("DELETE FROM pending_rewards")) {
+                votes.executeUpdate();
+                milestones.executeUpdate();
+                pending.executeUpdate();
             }
         } catch (SQLException ignored) {}
     }
 
     public int clearPlayerVotes(String playerName) {
-        String playerLower = playerName.toLowerCase();
+        String playerLower = playerName.toLowerCase(Locale.ROOT);
         try {
             Connection conn = db.getConnection();
             int count;
@@ -169,6 +174,11 @@ public class VoteHistory {
                 deleteMilestones.executeUpdate();
             }
 
+            try (PreparedStatement deletePending = conn.prepareStatement("DELETE FROM pending_rewards WHERE player_name = ?")) {
+                deletePending.setString(1, playerLower);
+                deletePending.executeUpdate();
+            }
+
             return count;
         } catch (SQLException ignored) {}
         return 0;
@@ -179,7 +189,7 @@ public class VoteHistory {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 ps.setString(2, serviceName);
                 ps.setString(3, address);
                 ps.setLong(4, timestamp);
@@ -195,7 +205,7 @@ public class VoteHistory {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         result.add(new PendingReward(

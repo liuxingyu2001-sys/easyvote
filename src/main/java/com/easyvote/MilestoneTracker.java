@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Locale;
 
 public class MilestoneTracker {
 
@@ -22,7 +23,7 @@ public class MilestoneTracker {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 ps.setInt(2, count);
                 ps.setLong(3, timestamp);
                 return ps.executeUpdate() > 0;
@@ -37,7 +38,7 @@ public class MilestoneTracker {
         try {
             Connection conn = db.getConnection();
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, playerName.toLowerCase());
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
                         int val = rs.getInt(1);

@@ -3,6 +3,7 @@ package com.easyvote;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import java.util.Locale;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -25,17 +26,17 @@ public class EasyVoteTabCompleter implements TabCompleter {
         }
 
         if (args.length == 1) {
-            String subCommand = args[0].toLowerCase();
+            String subCommand = args[0].toLowerCase(Locale.ROOT);
             completions.addAll(SUB_COMMANDS.stream()
                 .filter(cmd -> cmd.startsWith(subCommand))
                 .collect(Collectors.toList()));
         } else if (args.length == 2) {
-            String subCommand = args[0].toLowerCase();
+            String subCommand = args[0].toLowerCase(Locale.ROOT);
 
             if ("testvote".equals(subCommand) || "clearvotes".equals(subCommand)) {
-                String playerName = args[1].toLowerCase();
+                String playerName = args[1].toLowerCase(Locale.ROOT);
                 for (Player player : sender.getServer().getOnlinePlayers()) {
-                    if (player.getName().toLowerCase().startsWith(playerName)) {
+                    if (player.getName().toLowerCase(Locale.ROOT).startsWith(playerName)) {
                         completions.add(player.getName());
                     }
                 }

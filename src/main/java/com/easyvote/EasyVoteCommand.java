@@ -5,6 +5,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import java.util.Locale;
 
 public class EasyVoteCommand implements CommandExecutor {
 
@@ -20,7 +21,7 @@ public class EasyVoteCommand implements CommandExecutor {
             return true;
         }
         
-        String subCommand = args[0].toLowerCase();
+        String subCommand = args[0].toLowerCase(Locale.ROOT);
         
         switch (subCommand) {
             case "reload":
@@ -77,7 +78,7 @@ public class EasyVoteCommand implements CommandExecutor {
                     break;
                 }
                 if (args.length >= 2) {
-                    String targetPlayer = args[1].toLowerCase();
+                    String targetPlayer = args[1].toLowerCase(Locale.ROOT);
                     int cleared = history.clearPlayerVotes(targetPlayer);
                     if (cleared > 0) {
                         sender.sendMessage(ChatColor.GREEN + "已清除玩家 " + targetPlayer + " 的 " + cleared + " 条投票记录!");

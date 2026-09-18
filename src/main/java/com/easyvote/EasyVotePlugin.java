@@ -86,6 +86,11 @@ public class EasyVotePlugin extends JavaPlugin {
         } else {
             getLogger().info("已加载投票奖励配置");
         }
+
+        if (!getConfig().contains("votifier.join-reward-delay-seconds")) {
+            getConfig().set("votifier.join-reward-delay-seconds", 5);
+            needsSave = true;
+        }
         
         if (needsSave) {
             saveConfig();
@@ -150,8 +155,8 @@ public class EasyVotePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(voteListener, this);
         
         String host = getConfig().getString("votifier.host", "0.0.0.0");
-        int port = getConfig().getInt("votifier.port", 8192);
-        int maxThreads = getConfig().getInt("votifier.max-threads", 10);
+        int port = getConfig().getInt("votifier.port", 10022);
+        int maxThreads = Math.max(1, getConfig().getInt("votifier.max-threads", 10));
         
         votifierServer = new VotifierServer(this, keyManager, host, port, maxThreads);
         votifierServer.start();
