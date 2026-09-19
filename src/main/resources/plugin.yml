@@ -7,7 +7,7 @@ libraries:
   - org.xerial:sqlite-jdbc:3.49.1.0
 author: liuxingyu2001
 description: 轻量级 Votifier 投票监听插件，支持自定义投票奖励
-softdepend: []
+softdepend: [PlaceholderAPI]
 commands:
   easyvote:
     description: 管理 EasyVote 投票插件

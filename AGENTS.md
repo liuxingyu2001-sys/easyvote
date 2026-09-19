@@ -5,11 +5,11 @@ Minecraft Paper plugin (Java 21) - Votifier-compatible vote listener with config
 
 ## Build & Deploy
 ```bash
-# Compile and copy to test servers (default: /home/p and /home/test/plugins)
+# Compile and test (does not deploy)
 mvn clean package -q
 # Or use the skill shortcut: /mvnp
 
-# Output: target/Liu-EasyVote-1.3.jar (shaded fat JAR)
+# Output: target/Liu-EasyVote-<version>.jar (shaded fat JAR)
 ```
 
 ## Architecture
@@ -18,11 +18,14 @@ mvn clean package -q
 - `EasyVotePlugin.java` - Main plugin class, manages lifecycle and component initialization
 
 ### Core Components
-1. **VotifierServer** - TCP server (default port 10022) handling Votifier v1.9 and v2 protocols
+1. **VotifierServer** - TCP server (default port 10022) handling Votifier v1 RSA, legacy plaintext JSON (not standard v2), and custom packets
 2. **VoteListener** - Processes vote events, dispatches rewards via console commands
 3. **DatabaseManager** - SQLite storage (`data.db`) with WAL mode, auto-migrates from CSV
-4. **MilestoneTracker** - Tracks cumulative vote milestones (one-time rewards per threshold)
-5. **VoteHistory** - Vote counting and first-vote detection per service
+4. **MilestoneTracker** - Tracks received milestones; marked only after all reward commands succeed
+5. **VoteHistory** - Vote counting across all services, atomic vote + pending-reward persistence
+
+6. **RewardDelivery** - Saves per-command progress and preserves failed rewards for retry
+7. **EasyVoteExpansion / VotePlaceholders** - Optional PlaceholderAPI expansion and read-only vote queries
 
 ### Data Flow
 ```
@@ -39,29 +42,35 @@ VotifierServer → VoteEvent → VoteListener → reward commands (console)
 ## Key Conventions
 
 ### Reward System
-- Keys map service names to command lists (e.g., `mczfw`, `first-vote-mczfw`)
-- `default` key is fallback for unknown services
-- First-vote rewards use `first-vote-<service>` naming
+- `votifier.rewards.first-vote` is used for a player's first vote across all services.
+- `votifier.rewards.vote` is used for later votes; first votes do not also receive ordinary rewards.
+- Legacy per-service keys are no longer used.
+- Every vote and its pending reward are saved in one transaction before scheduling delivery.
+- Commands that fail or throw remain retryable; normal retries skip completed commands.
 
-### Service Name Mapping (VoteListener.java:181-195)
-```java
-"mczfw" ← contains "mczfw"
-"wdsjfwq" ← contains "服务器站" or "wdsjfwq"
-// Otherwise: split on "." and use first part
-```
+### PlaceholderAPI
+- Optional `provided` Maven dependency and `softdepend` in `plugin.yml`; never shade the API.
+- Registered only when PlaceholderAPI is enabled and vote storage is ready; unregistered on disable.
+- `persist()` keeps the expansion across `/papi reload`.
+- `%easyvote_votes%`, `%easyvote_pending%`, `%easyvote_milestone%` query the context player.
+- Append `_<player>` to those keys to query a named offline player; `%easyvote_total%` queries all votes.
+- Queries use lowercase names with `Locale.ROOT`; split the metric/name separator only once.
+- Return `null` for unknown variables, absent player context, or database errors; zero means a successful query with no records.
 
 ### Folia Compatibility
 Uses `Bukkit.getGlobalRegionScheduler().run()` for reward dispatch (not async scheduler).
 
 ### Database
 - SQLite with WAL journal mode
-- Tables: `votes` (id, player_name, service_name, address, timestamp), `milestones` (player_name, count, timestamp)
+- Tables: `votes`, `milestones`, `pending_rewards`, `reward_progress`
+- All VoteHistory and MilestoneTracker access is synchronized on the shared DatabaseManager.
 - Auto-migrates `votes.csv` and `milestones.csv` on first run
 
 ## Commands
 - `/easyvote reload` - Reload configuration
 - `/easyvote pubkey` - Show Votifier public key
-- `/easyvote votestats` - View vote statistics
+- `/easyvote votestats [player]` - View global or player vote statistics
+- `/easyvote votes [player]` - Player vote count and pending rewards; defaults to self
 - `/easyvote testvote` - Send test vote
 - `/easyvote clearvotes` - Clear vote history
 
@@ -69,4 +78,7 @@ Uses `Bukkit.getGlobalRegionScheduler().run()` for reward dispatch (not async sc
 - Votifier port defaults to 10022 in config.yml (not 8192)
 - RSA keys auto-generated on first run, stored in config
 - Debug mode saves vote info to `plugins/EasyVote/debug/` directory
-- Player must be online to receive rewards (silently skipped otherwise)
+- Offline rewards persist until the player joins; a zero join delay runs next tick.
+- Retry on join, new votes, plugin enable, and `/easyvote reload` for online players.
+- Reward commands run through the global scheduler; compatibility also depends on the target command plugin.
+- Run `mvn test` for the JUnit 4 / SQLite regression tests.

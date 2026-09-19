@@ -18,6 +18,7 @@ public class EasyVotePlugin extends JavaPlugin {
     private boolean votifierEnabled;
     private boolean cumulativeEnabled;
     private boolean debugEnabled;
+    private Runnable unregisterPlaceholders = () -> {};
 
     @Override
     public void onEnable() {
@@ -35,12 +36,14 @@ public class EasyVotePlugin extends JavaPlugin {
         
         getCommand("easyvote").setExecutor(new EasyVoteCommand());
         getCommand("easyvote").setTabCompleter(new EasyVoteTabCompleter());
+        registerPlaceholders();
         
         getLogger().info("EasyVote 插件已启用!");
     }
 
     @Override
     public void onDisable() {
+        unregisterPlaceholders.run();
         if (votifierServer != null) {
             votifierServer.stop();
         }
@@ -48,6 +51,26 @@ public class EasyVotePlugin extends JavaPlugin {
             db.close();
         }
         getLogger().info("EasyVote 插件已禁用!");
+    }
+
+    private void registerPlaceholders() {
+        if (!getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            getLogger().info("未安装 PlaceholderAPI，跳过投票查询变量注册");
+            return;
+        }
+        if (voteHistory == null || milestoneTracker == null) {
+            getLogger().warning("投票数据库未就绪，无法注册 PlaceholderAPI 查询变量");
+            return;
+        }
+        // Resolve the optional API only after its plugin has been detected.
+        EasyVoteExpansion expansion = new EasyVoteExpansion(getDescription().getVersion(),
+            new VotePlaceholders(voteHistory, milestoneTracker), getLogger());
+        if (expansion.register()) {
+            unregisterPlaceholders = expansion::unregister;
+            getLogger().info("已注册 PlaceholderAPI 投票查询变量: %easyvote_votes% 等");
+        } else {
+            getLogger().warning("PlaceholderAPI 投票查询变量注册失败，请检查是否存在同名扩展");
+        }
     }
 
     private void updateConfig() {

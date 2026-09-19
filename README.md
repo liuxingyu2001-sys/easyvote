@@ -12,6 +12,7 @@
 - SQLite 数据存储，自动从旧版 CSV 迁移
 - RSA 密钥对首次运行自动生成
 - 调试模式（保存投票详情到文件）
+- 可选 PlaceholderAPI 投票查询变量，支持当前玩家和指定离线玩家
 
 ## 环境要求
 
@@ -20,7 +21,7 @@
 
 ## 安装
 
-1. 下载 `Liu-EasyVote-1.3.2.jar`
+1. 下载 `Liu-EasyVote-1.3.3.jar`
 2. 放入服务器 `plugins/` 目录
 3. 重启服务器
 4. 将控制台输出的 Votifier 公钥复制到投票网站
@@ -35,6 +36,35 @@
 | `/easyvote votes [玩家名]` | 查询累计票数及待发投票奖励数；玩家不填姓名查自己，控制台需填写 | `easyvote.admin` |
 | `/easyvote testvote <玩家> <网站>` | 模拟测试投票 | `easyvote.admin` |
 | `/easyvote clearvotes [玩家]` | 清除投票数据（不指定则清除全部） | `easyvote.admin` |
+
+## PlaceholderAPI 查询变量
+
+安装 PlaceholderAPI 2.11.6+ 后重启服务器，EasyVote 会自动注册内置扩展，无需从 eCloud 下载。未安装 PlaceholderAPI 不影响投票与发奖。需要启用 Votifier 且投票数据库初始化成功；`/papi reload` 后扩展仍保留。
+
+可在支持 PlaceholderAPI 的菜单、计分板、聊天等插件中使用：
+
+| 变量 | 含义 |
+|------|------|
+| `%easyvote_votes%` | 当前玩家累计投票次数，合并所有网站 |
+| `%easyvote_pending%` | 当前玩家待发投票奖励条数，不含里程碑 |
+| `%easyvote_milestone%` | 当前玩家已领取的最高里程碑次数，未领取为 0 |
+| `%easyvote_total%` | 全服累计投票次数，无需玩家上下文 |
+| `%easyvote_votes_Steve%` | 指定玩家 Steve 的累计投票次数 |
+| `%easyvote_pending_Steve%` | 指定玩家 Steve 的待发投票奖励条数 |
+| `%easyvote_milestone_Steve%` | 指定玩家 Steve 已领取的最高里程碑次数 |
+
+将 `Steve` 替换为实际玩家名，支持离线玩家、下划线姓名和大小写不敏感查询。不存在的玩家返回 `0`，查询不会创建投票记录。缺少玩家上下文、未知变量或数据库错误时保留原变量，不会伪装成 0 次投票。
+
+验证示例（需具备 PlaceholderAPI 的解析命令权限）：
+
+```text
+/papi parse me %easyvote_votes%
+/papi parse me %easyvote_pending%
+/papi parse me %easyvote_votes_Steve%
+/papi parse me %easyvote_total%
+```
+
+这些是给其他插件使用的查询变量，与下文奖励命令中的 `%player%` 等内置替换变量分别处理。查询变量不要求玩家拥有 `easyvote.admin`；展示及解析命令权限由使用它的插件控制。
 
 ## 配置
 
@@ -89,7 +119,7 @@ cumulative:
 mvn clean package
 ```
 
-输出：`target/Liu-EasyVote-1.3.2.jar`
+输出：`target/Liu-EasyVote-1.3.3.jar`
 
 ## 许可
 
