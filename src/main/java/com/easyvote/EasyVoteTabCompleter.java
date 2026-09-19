@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 public class EasyVoteTabCompleter implements TabCompleter {
 
     private static final List<String> SUB_COMMANDS = Arrays.asList(
-        "reload", "pubkey", "votestats", "testvote", "clearvotes"
+        "reload", "pubkey", "votestats", "votes", "testvote", "clearvotes"
     );
 
     @Override
@@ -33,7 +33,7 @@ public class EasyVoteTabCompleter implements TabCompleter {
         } else if (args.length == 2) {
             String subCommand = args[0].toLowerCase(Locale.ROOT);
 
-            if ("testvote".equals(subCommand) || "clearvotes".equals(subCommand)) {
+            if (List.of("testvote", "clearvotes", "votes", "votestats").contains(subCommand)) {
                 String playerName = args[1].toLowerCase(Locale.ROOT);
                 for (Player player : sender.getServer().getOnlinePlayers()) {
                     if (player.getName().toLowerCase(Locale.ROOT).startsWith(playerName)) {

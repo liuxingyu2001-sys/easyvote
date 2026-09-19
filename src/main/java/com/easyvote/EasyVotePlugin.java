@@ -111,6 +111,7 @@ public class EasyVotePlugin extends JavaPlugin {
         loadConfig();
         if (voteListener != null) {
             voteListener.reloadRewards();
+            voteListener.retryOnlineRewards();
         }
     }
 
@@ -153,6 +154,7 @@ public class EasyVotePlugin extends JavaPlugin {
         voteHistory = new VoteHistory(db);
         voteListener = new VoteListener(this, voteHistory, milestoneTracker);
         getServer().getPluginManager().registerEvents(voteListener, this);
+        voteListener.retryOnlineRewards();
         
         String host = getConfig().getString("votifier.host", "0.0.0.0");
         int port = getConfig().getInt("votifier.port", 10022);

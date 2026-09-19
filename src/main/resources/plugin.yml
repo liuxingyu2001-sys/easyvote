@@ -11,7 +11,7 @@ softdepend: []
 commands:
   easyvote:
     description: 管理 EasyVote 投票插件
-    usage: /easyvote <reload|pubkey|votestats|testvote|clearvotes>
+    usage: /easyvote <reload|pubkey|votestats|votes|testvote|clearvotes>
     permission: easyvote.admin
 permissions:
   easyvote.admin:

@@ -83,9 +83,11 @@ public class VotifierServer {
             
             clientSocket.setSoTimeout(5000);
             
-            outputStream.write("VOTIFIER 1.9".getBytes(StandardCharsets.UTF_8));
+            outputStream.write("VOTIFIER 1.9\n".getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
             
+            int encryptedSize = (((java.security.interfaces.RSAKey) keyManager.getKeyPair()
+                .getPublic()).getModulus().bitLength() + 7) / 8;
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             byte[] buffer = new byte[256];
             int bytesRead;
@@ -100,9 +102,12 @@ public class VotifierServer {
                     }
                     baos.write(buffer, 0, bytesRead);
                     
-                    if (baos.size() > 4 && baos.toString(StandardCharsets.UTF_8).endsWith("\n")) {
+                    // RSA ciphertext is binary: a newline inside a TCP fragment is not a terminator.
+                    String text = baos.toString(StandardCharsets.UTF_8).trim();
+                    if (baos.size() == encryptedSize || (text.startsWith("{") && text.endsWith("}"))) {
                         break;
                     }
+                    if (baos.size() > 4096) throw new IOException("投票数据过长");
                 } else {
                     Thread.sleep(10);
                 }
@@ -121,7 +126,7 @@ public class VotifierServer {
                 return;
             }
             
-            if (rawDataString.startsWith("{")) {
+            if (rawBytes.length != encryptedSize && rawDataString.startsWith("{")) {
                 handleVotifierV2(rawDataString, clientAddress);
                 return;
             }
@@ -134,20 +139,14 @@ public class VotifierServer {
                 return;
             }
             
-            decryptedData = decryptedData.replaceAll("[\r\n]+", " ").trim();
+            decryptedData = decryptedData.trim();
             
             if (decryptedData.startsWith("VOTIFIER") && !decryptedData.startsWith("VOTIFIER ") && !decryptedData.startsWith("VOTE ")) {
                 handleCustomVotifierFormat(decryptedData, clientAddress);
                 return;
             }
             
-            if (!decryptedData.startsWith("VOTE ")) {
-                plugin.getLogger().warning("[" + clientAddress + "] 无效的投票格式");
-                return;
-            }
-            
-            String voteData = decryptedData.substring(5).trim();
-            String[] parts = voteData.split("\\s+");
+            String[] parts = parseVoteFields(decryptedData);
             
             if (parts.length < 4) {
                 plugin.getLogger().warning("[" + clientAddress + "] 投票数据格式错误");
@@ -185,6 +184,16 @@ public class VotifierServer {
                 // 忽略关闭错误
             }
         }
+    }
+
+    static String[] parseVoteFields(String data) {
+        String[] lines = data.split("\\r?\\n", -1);
+        if (lines.length >= 5 && lines[0].trim().equals("VOTE")) {
+            // Service names may contain spaces; preserve the protocol's field boundaries.
+            return new String[] {lines[1].trim(), lines[2].trim(), lines[3].trim(), lines[4].trim()};
+        }
+        if (data.startsWith("VOTE ")) return data.substring(5).trim().split("\\s+");
+        return new String[0];
     }
     
     private String bytesToHex(byte[] bytes) {

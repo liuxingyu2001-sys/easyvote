@@ -11,16 +11,23 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
+import java.util.logging.Logger;
 
 public class DatabaseManager {
 
-    private final EasyVotePlugin plugin;
+    private final Logger logger;
+    private final File dataFolder;
     private final File dbFile;
     private Connection connection;
 
     public DatabaseManager(EasyVotePlugin plugin) {
-        this.plugin = plugin;
-        this.dbFile = new File(plugin.getDataFolder(), "data.db");
+        this(plugin.getDataFolder(), plugin.getLogger());
+    }
+
+    DatabaseManager(File dataFolder, Logger logger) {
+        this.dataFolder = dataFolder;
+        this.logger = logger;
+        this.dbFile = new File(dataFolder, "data.db");
     }
 
     public synchronized Connection getConnection() throws SQLException {
@@ -30,12 +37,11 @@ public class DatabaseManager {
         return connection;
     }
 
-    public void initialize() {
+    public synchronized void initialize() {
         try {
             Class.forName("org.sqlite.JDBC");
         } catch (ClassNotFoundException e) {
-            plugin.getLogger().severe("SQLite 驱动加载失败: " + e.getMessage());
-            return;
+            throw new IllegalStateException("SQLite 驱动加载失败", e);
         }
 
         try {
@@ -82,31 +88,34 @@ public class DatabaseManager {
             stmt.execute(
                 "CREATE INDEX IF NOT EXISTS idx_pending_player ON pending_rewards(player_name)"
             );
+            stmt.execute("CREATE TABLE IF NOT EXISTS reward_progress (" +
+                "player_name TEXT NOT NULL, reward_key TEXT NOT NULL, commands TEXT NOT NULL," +
+                "next_command INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (player_name, reward_key))");
 
             stmt.close();
             migrateCsvIfExists();
 
-            plugin.getLogger().info("SQLite 数据库已就绪: " + dbFile.getAbsolutePath());
+            logger.info("SQLite 数据库已就绪: " + dbFile.getAbsolutePath());
         } catch (SQLException e) {
-            plugin.getLogger().severe("数据库初始化失败: " + e.getMessage());
+            throw new IllegalStateException("数据库初始化失败", e);
         }
     }
 
     private void migrateCsvIfExists() {
-        File votesCsv = new File(plugin.getDataFolder(), "votes.csv");
-        File milestonesCsv = new File(plugin.getDataFolder(), "milestones.csv");
+        File votesCsv = new File(dataFolder, "votes.csv");
+        File milestonesCsv = new File(dataFolder, "milestones.csv");
 
         if (votesCsv.exists()) {
-            plugin.getLogger().info("检测到旧 votes.csv，正在迁移...");
+            logger.info("检测到旧 votes.csv，正在迁移...");
             int count = migrateVotesCsv(votesCsv);
-            plugin.getLogger().info("已迁移 " + count + " 条投票记录");
+            logger.info("已迁移 " + count + " 条投票记录");
             votesCsv.delete();
         }
 
         if (milestonesCsv.exists()) {
-            plugin.getLogger().info("检测到旧 milestones.csv，正在迁移...");
+            logger.info("检测到旧 milestones.csv，正在迁移...");
             int count = migrateMilestonesCsv(milestonesCsv);
-            plugin.getLogger().info("已迁移 " + count + " 条里程碑记录");
+            logger.info("已迁移 " + count + " 条里程碑记录");
             milestonesCsv.delete();
         }
     }
@@ -139,7 +148,18 @@ public class DatabaseManager {
             conn.setAutoCommit(true);
             ps.close();
         } catch (Exception e) {
-            plugin.getLogger().warning("迁移 votes.csv 失败: " + e.getMessage());
+            try {
+                getConnection().rollback();
+            } catch (SQLException rollbackFailure) {
+                e.addSuppressed(rollbackFailure);
+            }
+            throw new IllegalStateException("迁移 votes.csv 失败，保留原文件", e);
+        } finally {
+            try {
+                getConnection().setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new IllegalStateException("恢复数据库自动提交失败", e);
+            }
         }
         return count;
     }
@@ -171,18 +191,29 @@ public class DatabaseManager {
             conn.setAutoCommit(true);
             ps.close();
         } catch (Exception e) {
-            plugin.getLogger().warning("迁移 milestones.csv 失败: " + e.getMessage());
+            try {
+                getConnection().rollback();
+            } catch (SQLException rollbackFailure) {
+                e.addSuppressed(rollbackFailure);
+            }
+            throw new IllegalStateException("迁移 milestones.csv 失败，保留原文件", e);
+        } finally {
+            try {
+                getConnection().setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new IllegalStateException("恢复数据库自动提交失败", e);
+            }
         }
         return count;
     }
 
-    public void close() {
+    public synchronized void close() {
         try {
             if (connection != null && !connection.isClosed()) {
                 connection.close();
             }
         } catch (SQLException e) {
-            plugin.getLogger().warning("关闭数据库连接失败: " + e.getMessage());
+            logger.warning("关闭数据库连接失败: " + e.getMessage());
         }
     }
 }
