@@ -17,8 +17,8 @@ public class MilestoneConfigTest {
 
     @Test public void defaultRewardsHaveReadableDescriptionsAndConfiguredSlots() {
         var config = YamlConfiguration.loadConfiguration(new InputStreamReader(
-            getClass().getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
-        var rewards = MilestoneReward.load(config.getList("votifier.cumulative.milestones"), logger);
+            getClass().getResourceAsStream("/cumulative.yml"), StandardCharsets.UTF_8));
+        var rewards = MilestoneReward.load(config.getList("milestones"), logger);
         assertEquals(List.of(10, 50, 100), rewards.stream().map(MilestoneReward::count).toList());
         assertTrue(rewards.getFirst().description().contains("钻石"));
         var pages = MilestoneMenu.pages(rewards);

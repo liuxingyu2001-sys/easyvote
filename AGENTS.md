@@ -38,6 +38,8 @@ VotifierServer → VoteEvent → VoteListener → reward commands (console)
 ## Configuration
 - `src/main/resources/config.yml` - Default config (copied on first run)
 - Runtime config: `plugins/EasyVote/config.yml`
+- `src/main/resources/cumulative.yml` → `plugins/EasyVote/cumulative.yml`: milestone enable flag, commands/display, GUI title, states and messages at the root level. Reload both files with `/easyvote reload`.
+- `CumulativeConfig` migrates legacy `votifier.cumulative` only when the standalone file is absent; save the new file before removing the old section. Existing standalone files take precedence; invalid YAML must not silently activate defaults.
 - Reward variables: `%player%`, `%player_name%`, `%service%`, `%address%`, `%uuid%`
 
 ## Key Conventions

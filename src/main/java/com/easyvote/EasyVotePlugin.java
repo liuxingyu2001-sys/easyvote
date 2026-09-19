@@ -1,6 +1,7 @@
 package com.easyvote;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ public class EasyVotePlugin extends JavaPlugin {
     private MilestoneTracker milestoneTracker;
     private boolean votifierEnabled;
     private MilestoneMenu milestoneMenu;
+    private volatile FileConfiguration cumulativeConfig;
     private boolean debugEnabled;
     private volatile int dailyVoteLimit = 1;
     private Runnable unregisterPlaceholders = () -> {};
@@ -28,6 +30,7 @@ public class EasyVotePlugin extends JavaPlugin {
         saveDefaultConfig();
         updateConfig();
         loadConfig();
+        cumulativeConfig = CumulativeConfig.load(getDataFolder(), getConfig(), getLogger());
         
         try {
             startVotifier();
@@ -119,20 +122,6 @@ public class EasyVotePlugin extends JavaPlugin {
             getConfig().set("votifier.daily-vote-limit", 1);
             needsSave = true;
         }
-        // Add menu/message settings without replacing existing milestone commands or display definitions.
-        var defaults = getConfig().getDefaults();
-        if (defaults != null) {
-            for (String key : defaults.getKeys(true)) {
-                if (!(key.equals("votifier.cumulative.gui-title")
-                        || key.startsWith("votifier.cumulative.messages.")
-                        || key.startsWith("votifier.cumulative.states."))) continue;
-                if (!defaults.isConfigurationSection(key) && !getConfig().contains(key, true)) {
-                    getConfig().set(key, defaults.get(key));
-                    needsSave = true;
-                }
-            }
-        }
-        
         if (needsSave) {
             saveConfig();
             getLogger().info("配置文件已更新");
@@ -152,6 +141,7 @@ public class EasyVotePlugin extends JavaPlugin {
     public void reloadPluginConfig() {
         saveDefaultConfig();
         reloadConfig();
+        cumulativeConfig = CumulativeConfig.load(getDataFolder(), getConfig(), getLogger());
         updateConfig();
         loadConfig();
         if (milestoneMenu != null) milestoneMenu.reload();
@@ -227,6 +217,10 @@ public class EasyVotePlugin extends JavaPlugin {
     
     public MilestoneTracker getMilestoneTracker() {
         return milestoneTracker;
+    }
+
+    FileConfiguration getCumulativeConfig() {
+        return cumulativeConfig;
     }
 
     MilestoneMenu getMilestoneMenu() {

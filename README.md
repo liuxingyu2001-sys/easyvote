@@ -21,7 +21,7 @@
 
 ## 安装
 
-1. 下载 `Liu-EasyVote-1.3.5.jar`
+1. 下载 `Liu-EasyVote-1.3.6.jar`
 2. 放入服务器 `plugins/` 目录
 3. 重启服务器
 4. 将控制台输出的 Votifier 公钥复制到投票网站
@@ -69,7 +69,7 @@
 
 ## 配置
 
-配置文件位于 `plugins/EasyVote/config.yml`。
+主配置位于 `plugins/EasyVote/config.yml`；累计里程碑奖励、领取界面与消息单独放在 `plugins/EasyVote/cumulative.yml`。`/easyvote reload` 会同时重载两个文件。
 
 ### 每日投票上限
 
@@ -113,32 +113,30 @@ votifier:
 
 ### 累计里程碑
 
-在 `votifier.cumulative.milestones` 中配置，每位玩家每档只能手动领取一次。达标后收到“已达到多少次、可领取哪些奖励”的聊天提醒，点击整条消息打开界面，悬停预览物品。普通玩家也可以使用 `/easyvote rewards`（不带参数的 `/easyvote` 也会为非管理员打开界面）。
+在独立文件 `cumulative.yml` 的 `milestones` 中配置，每位玩家每档只能手动领取一次。达标后收到“已达到多少次、可领取哪些奖励”的聊天提醒，点击整条消息打开界面，悬停预览物品。普通玩家也可以使用 `/easyvote rewards`（不带参数的 `/easyvote` 也会为非管理员打开界面）。
 
 同一次在线期间每档只提醒一次；重新上线、插件启用、reload 后会再次提醒未领取档位。离线达标也会在上线后提醒，沿用 `join-reward-delay-seconds` 延迟。首次/普通奖励发放失败不会阻止里程碑提醒和领取。
 
 格式参考 LiuInvite：`commands` 决定实际奖励，`display` 决定界面与悬停外观，`description` 决定聊天里的奖励说明；这些展示字段不会自动发放物品，请与命令保持一致。
 
 ```yaml
-votifier:
-  cumulative:
-    enabled: true
-    gui-title: "&6累计投票奖励"
-    milestones:
-      - count: 10
-        description: "&b钻石 ×10 &7+ &e5000 金币"
-        display:
-          slot: 20
-          material: DIAMOND
-          # 可选，填入实际 CE 物品 ID；优先于 material
-          # craftengine_model: "namespace:item_id"
-          name: "&a累计投票 %count% 次奖励"
-          lore:
-            - "&7奖励：&b钻石 ×10"
-            - "&7奖励：&e5000 金币"
-        commands:
-          - "give %player% diamond 10"
-          - "money give %player% 5000"
+enabled: true
+gui-title: "&6累计投票奖励"
+milestones:
+  - count: 10
+    description: "&b钻石 ×10 &7+ &e5000 金币"
+    display:
+      slot: 20
+      material: DIAMOND
+      # 可选，填入实际 CE 物品 ID；优先于 material
+      # craftengine_model: "namespace:item_id"
+      name: "&a累计投票 %count% 次奖励"
+      lore:
+        - "&7奖励：&b钻石 ×10"
+        - "&7奖励：&e5000 金币"
+    commands:
+      - "give %player% diamond 10"
+      - "money give %player% 5000"
 ```
 
 `display.craftengine_model` 与 LiuInvite 使用相同字段。安装并启用 CraftEngine 后，直接构建 CE 物品，保留其模型数据和原有物品说明；未安装、ID 无效或 API 不兼容时回退 `material`，默认箱子，并输出一次警告。未填写 `display.name` 时保留 CE 原物品名。聊天悬停和界面使用相同图标。实际领取仍执行 `commands`，CE 奖励请配置服务器所用的 CE 发放命令。
@@ -147,7 +145,7 @@ votifier:
 
 `messages.available` 支持 `%count%`（档位）、`%votes%`（当前票数）、`%rewards%`（奖励说明）。奖励说明缺省时使用 `display.lore`，再回退 `display.name` 或档位名称。领取命令中的 `%service%`、`%address%` 使用按入库顺序解锁该档位的投票记录。
 
-升级保留旧的 `count + commands` 配置、已领取记录与部分发放进度，已有达标未领取档位直接转为可手动领取。菜单与消息设置自动补入，旧档位请自行补充 `description` 和 `display`，以显示准确的奖励内容与 CE 图标。修改后执行 `/easyvote reload` 生效。
+升级保留旧的 `count + commands` 配置、已领取记录与部分发放进度，已有达标未领取档位直接转为可手动领取。首次升级且 `cumulative.yml` 不存在时，自动将旧 `config.yml` 的 `votifier.cumulative` 整段迁移到新文件根级，保存成功后移除旧段。已存在的 `cumulative.yml` 优先，不会被旧配置覆盖；若同时存在旧段会在日志提示忽略。新文件 YAML 格式错误时 reload 报错并保留当前里程碑配置。旧档位请自行补充 `description` 和 `display`，以显示准确的奖励内容与 CE 图标。修改后执行 `/easyvote reload` 生效。
 
 ## 构建
 
@@ -155,7 +153,7 @@ votifier:
 mvn clean package
 ```
 
-输出：`target/Liu-EasyVote-1.3.5.jar`
+输出：`target/Liu-EasyVote-1.3.6.jar`
 
 ## 许可
 

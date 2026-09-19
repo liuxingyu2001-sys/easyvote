@@ -30,7 +30,6 @@ import java.util.logging.Level;
 
 /** Inventory work stays on the player's region; reward commands run on the global scheduler. */
 final class MilestoneMenu implements Listener {
-    private static final String ROOT = "votifier.cumulative.";
     private final EasyVotePlugin plugin;
     private final MilestoneRewards rewards;
     private final Map<UUID, Set<Integer>> notified = new ConcurrentHashMap<>();
@@ -43,8 +42,8 @@ final class MilestoneMenu implements Listener {
     }
 
     void reload() {
-        rewards.configure(plugin.getConfig().getBoolean(ROOT + "enabled", true),
-            MilestoneReward.load(plugin.getConfig().getList(ROOT + "milestones"), plugin.getLogger()));
+        rewards.configure(plugin.getCumulativeConfig().getBoolean("enabled", true),
+            MilestoneReward.load(plugin.getCumulativeConfig().getList("milestones"), plugin.getLogger()));
         notified.clear();
         warned.clear();
     }
@@ -59,7 +58,7 @@ final class MilestoneMenu implements Listener {
                 for (MilestoneReward reward : available) {
                     if (sent.contains(reward.count())) continue;
                     ItemStack item = render(reward, MilestoneRewards.State.AVAILABLE, votes);
-                    Component message = text(format(plugin.getConfig().getString(ROOT + "messages.available",
+                    Component message = text(format(plugin.getCumulativeConfig().getString("messages.available",
                         "&6[投票里程碑] &e已达到 %count% 次！可领取：%rewards% &a[点击打开]"), reward, votes))
                         .clickEvent(ClickEvent.runCommand("/easyvote rewards"))
                         .hoverEvent(item.asHoverEvent());
@@ -89,7 +88,7 @@ final class MilestoneMenu implements Listener {
                 List<Map<Integer, MilestoneReward>> pages = pages(rewards.rewards());
                 int currentPage = Math.max(0, Math.min(page, pages.size() - 1));
                 Session session = new Session(player.getUniqueId(), currentPage);
-                String title = plugin.getConfig().getString(ROOT + "gui-title", "&6累计投票奖励")
+                String title = plugin.getCumulativeConfig().getString("gui-title", "&6累计投票奖励")
                     + " &7(" + (currentPage + 1) + "/" + pages.size() + ")";
                 session.inventory = Bukkit.createInventory(session, 54, text(title));
                 int votes = plugin.getVoteHistory().getPlayerVoteCount(player.getName());
@@ -162,7 +161,7 @@ final class MilestoneMenu implements Listener {
                     case BUSY -> "&e奖励正在发放，请稍候。";
                     case FAILED -> "&c奖励未全部发放，请稍后再次点击领取；已成功的命令不会重复执行。";
                 };
-                String message = plugin.getConfig().getString(ROOT + "messages." + result.name().toLowerCase(Locale.ROOT), fallback)
+                String message = plugin.getCumulativeConfig().getString("messages." + result.name().toLowerCase(Locale.ROOT), fallback)
                     .replace("%count%", count.toString());
                 player.getScheduler().run(plugin, reply -> player.sendMessage(text(message)), null);
                 open(player, session.page, session);
@@ -186,7 +185,7 @@ final class MilestoneMenu implements Listener {
     private ItemStack render(MilestoneReward reward, MilestoneRewards.State state, int votes) {
         Map<String, Object> display = new HashMap<>();
         reward.display().forEach((key, value) -> display.put(key.toString(), value));
-        var override = plugin.getConfig().getConfigurationSection(ROOT + "states." + state.name().toLowerCase(Locale.ROOT));
+        var override = plugin.getCumulativeConfig().getConfigurationSection("states." + state.name().toLowerCase(Locale.ROOT));
         if (override != null) {
             // A state with an explicit vanilla material can replace a CE icon.
             if (override.contains("material") && !override.contains("craftengine_model")) display.remove("craftengine_model");
