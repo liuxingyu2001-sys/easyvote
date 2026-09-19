@@ -76,6 +76,7 @@ Runtime config: `plugins/EasyVote/config.yml` (default template: `src/main/resou
 - Reward keys are `votifier.rewards.first-vote` and `votifier.rewards.vote`, across all sites.
 - Every vote is queued durably before delivery; offline rewards retry on join. First votes do not also receive ordinary rewards.
 - Cumulative milestones configured under `votifier.cumulative.milestones`.
+- `votifier.daily-vote-limit` defaults to 1 per player across all sites; 0 means unlimited. Reload applies changes. Limits use server receipt time and local calendar days, persist across restarts, and also apply to test votes. Rejected votes do not affect counts or rewards; pending rewards remain deliverable.
 - `debug: true` saves per-vote detail files to `plugins/EasyVote/debug/`.
 
 ## Development Conventions

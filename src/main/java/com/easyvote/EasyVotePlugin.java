@@ -18,6 +18,7 @@ public class EasyVotePlugin extends JavaPlugin {
     private boolean votifierEnabled;
     private boolean cumulativeEnabled;
     private boolean debugEnabled;
+    private volatile int dailyVoteLimit = 1;
     private Runnable unregisterPlaceholders = () -> {};
 
     @Override
@@ -114,6 +115,10 @@ public class EasyVotePlugin extends JavaPlugin {
             getConfig().set("votifier.join-reward-delay-seconds", 5);
             needsSave = true;
         }
+        if (!getConfig().contains("votifier.daily-vote-limit", true)) {
+            getConfig().set("votifier.daily-vote-limit", 1);
+            needsSave = true;
+        }
         
         if (needsSave) {
             saveConfig();
@@ -125,6 +130,11 @@ public class EasyVotePlugin extends JavaPlugin {
         votifierEnabled = getConfig().getBoolean("votifier.enabled", true);
         cumulativeEnabled = getConfig().getBoolean("votifier.cumulative.enabled", true);
         debugEnabled = getConfig().getBoolean("debug", false);
+        dailyVoteLimit = getConfig().getInt("votifier.daily-vote-limit", 1);
+        if (dailyVoteLimit < 0) {
+            getLogger().warning("daily-vote-limit 不能为负数，使用默认值 1；0 表示不限");
+            dailyVoteLimit = 1;
+        }
     }
 
     public void reloadPluginConfig() {
@@ -205,5 +215,9 @@ public class EasyVotePlugin extends JavaPlugin {
 
     public boolean isDebugEnabled() {
         return debugEnabled;
+    }
+
+    public int getDailyVoteLimit() {
+        return dailyVoteLimit;
     }
 }

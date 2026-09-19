@@ -21,7 +21,7 @@
 
 ## 安装
 
-1. 下载 `Liu-EasyVote-1.3.3.jar`
+1. 下载 `Liu-EasyVote-1.3.4.jar`
 2. 放入服务器 `plugins/` 目录
 3. 重启服务器
 4. 将控制台输出的 Votifier 公钥复制到投票网站
@@ -69,6 +69,19 @@
 ## 配置
 
 配置文件位于 `plugins/EasyVote/config.yml`。
+
+### 每日投票上限
+
+```yaml
+votifier:
+  daily-vote-limit: 1
+```
+
+默认每位玩家每天最多计入 **1 次**投票，所有网站合并计算，玩家名不区分大小写。设为 `0` 表示不限；负数按默认值 1 处理。旧配置会自动补入此项，修改后执行 `/easyvote reload` 生效。
+
+按服务器 JVM 本地时区的自然日统计，每天零点恢复额度，新投票使用服务器接收时间，不信任网站提供的时间戳。次数持久化到数据库，重启或领取奖励不会恢复额度；升级时旧记录使用已有时间戳（兼容秒和毫秒）推算日期。
+
+超限投票会记录提示日志，但不增加累计票数、不触发里程碑、不生成奖励，也不会推迟到次日发放。已入队的离线奖励仍正常补发。`/easyvote testvote` 同样受限；`/easyvote clearvotes` 删除投票记录时也会清除对应每日计数。
 
 ### 奖励变量
 
@@ -119,7 +132,7 @@ cumulative:
 mvn clean package
 ```
 
-输出：`target/Liu-EasyVote-1.3.3.jar`
+输出：`target/Liu-EasyVote-1.3.4.jar`
 
 ## 许可
 

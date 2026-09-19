@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
@@ -65,6 +66,14 @@ public class DatabaseManager {
             stmt.execute(
                 "CREATE INDEX IF NOT EXISTS idx_votes_service ON votes(service_name)"
             );
+            boolean hasReceivedAt = false;
+            try (ResultSet columns = stmt.executeQuery("PRAGMA table_info(votes)")) {
+                while (columns.next()) {
+                    if ("received_at".equals(columns.getString("name"))) hasReceivedAt = true;
+                }
+            }
+            if (!hasReceivedAt) stmt.execute("ALTER TABLE votes ADD COLUMN received_at INTEGER");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_votes_player_received ON votes(player_name, received_at)");
 
             stmt.execute(
                 "CREATE TABLE IF NOT EXISTS milestones (" +
@@ -94,6 +103,12 @@ public class DatabaseManager {
 
             stmt.close();
             migrateCsvIfExists();
+            // Older records have only the site's timestamp (seconds or milliseconds).
+            try (Statement migration = conn.createStatement()) {
+                migration.executeUpdate("UPDATE votes SET received_at = CASE " +
+                    "WHEN timestamp BETWEEN 0 AND 99999999999 THEN timestamp * 1000 ELSE timestamp END " +
+                    "WHERE received_at IS NULL");
+            }
 
             logger.info("SQLite 数据库已就绪: " + dbFile.getAbsolutePath());
         } catch (SQLException e) {

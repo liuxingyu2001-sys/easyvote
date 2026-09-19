@@ -87,7 +87,15 @@ public class VoteListener implements Listener {
         long timestamp = event.getTimestamp();
 
         try {
-            boolean isFirstVote = voteHistory.recordVoteAndQueue(playerName, serviceName, address, timestamp);
+            int dailyLimit = plugin.getDailyVoteLimit();
+            VoteHistory.VoteResult result = voteHistory.recordVoteAndQueue(
+                playerName, serviceName, address, timestamp, dailyLimit);
+            if (result == VoteHistory.VoteResult.DAILY_LIMIT_REACHED) {
+                plugin.getLogger().info("玩家 " + playerName + " 已达到每日投票上限 " + dailyLimit
+                    + " 次，忽略来自 " + serviceName + " 的投票（不计数、不发奖励）");
+                return;
+            }
+            boolean isFirstVote = result == VoteHistory.VoteResult.FIRST_VOTE;
             // A join delay also covers votes that arrive just after the player joins.
             if (!pendingRewardDispatches.contains(playerName.toLowerCase(Locale.ROOT))) {
                 scheduleRewards(playerName, 1L);

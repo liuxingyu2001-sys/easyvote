@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,23 +14,45 @@ import java.util.Map;
 public class VoteHistory {
 
     private final DatabaseManager db;
+    private final Clock clock;
 
     public VoteHistory(DatabaseManager db) {
+        this(db, Clock.systemDefaultZone());
+    }
+
+    VoteHistory(DatabaseManager db, Clock clock) {
         this.db = db;
+        this.clock = clock;
     }
 
     /** Record the vote and its reward together, before any scheduler can be cancelled. */
     public boolean recordVoteAndQueue(String playerName, String serviceName, String address, long timestamp) {
+        return recordVoteAndQueue(playerName, serviceName, address, timestamp, 0) == VoteResult.FIRST_VOTE;
+    }
+
+    public enum VoteResult { FIRST_VOTE, ACCEPTED, DAILY_LIMIT_REACHED }
+
+    public VoteResult recordVoteAndQueue(String playerName, String serviceName, String address,
+                                        long timestamp, int dailyLimit) {
+        if (dailyLimit < 0) throw new IllegalArgumentException("dailyLimit must be non-negative");
         synchronized (db) {
             try {
                 Connection conn = db.getConnection();
                 conn.setAutoCommit(false);
                 try {
+                    var received = clock.instant();
+                    var day = received.atZone(clock.getZone()).toLocalDate();
+                    long start = day.atStartOfDay(clock.getZone()).toInstant().toEpochMilli();
+                    long end = day.plusDays(1).atStartOfDay(clock.getZone()).toInstant().toEpochMilli();
+                    if (dailyLimit > 0 && getPlayerVoteCountBetween(playerName, start, end) >= dailyLimit) {
+                        conn.rollback();
+                        return VoteResult.DAILY_LIMIT_REACHED;
+                    }
                     boolean firstVote = getPlayerVoteCount(playerName) == 0;
-                    addVote(playerName, serviceName, address, timestamp);
+                    addVote(playerName, serviceName, address, timestamp, received.toEpochMilli());
                     addPendingReward(playerName, serviceName, address, timestamp, firstVote);
                     conn.commit();
-                    return firstVote;
+                    return firstVote ? VoteResult.FIRST_VOTE : VoteResult.ACCEPTED;
                 } catch (Exception e) {
                     conn.rollback();
                     throw e;
@@ -38,6 +61,18 @@ public class VoteHistory {
                 }
             } catch (SQLException e) {
                 throw new IllegalStateException("保存投票及待发奖励失败", e);
+            }
+        }
+    }
+
+    private int getPlayerVoteCountBetween(String playerName, long start, long end) throws SQLException {
+        try (PreparedStatement ps = db.getConnection().prepareStatement(
+                "SELECT COUNT(*) FROM votes WHERE player_name = ? AND received_at >= ? AND received_at < ?")) {
+            ps.setString(1, playerName.toLowerCase(Locale.ROOT));
+            ps.setLong(2, start);
+            ps.setLong(3, end);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
             }
         }
     }
@@ -115,8 +150,12 @@ public class VoteHistory {
     public record RewardProgress(List<String> commands, int nextCommand) {}
 
     public void addVote(String playerName, String serviceName, String address, long timestamp) {
+        addVote(playerName, serviceName, address, timestamp, clock.millis());
+    }
+
+    private void addVote(String playerName, String serviceName, String address, long timestamp, long receivedAt) {
         synchronized (db) {
-            String sql = "INSERT INTO votes (player_name, service_name, address, timestamp) VALUES (?, ?, ?, ?)";
+            String sql = "INSERT INTO votes (player_name, service_name, address, timestamp, received_at) VALUES (?, ?, ?, ?, ?)";
             try {
                 Connection conn = db.getConnection();
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -124,6 +163,7 @@ public class VoteHistory {
                     ps.setString(2, serviceName);
                     ps.setString(3, address);
                     ps.setLong(4, timestamp);
+                    ps.setLong(5, receivedAt);
                     ps.executeUpdate();
                 }
             } catch (SQLException e) {

@@ -47,6 +47,9 @@ VotifierServer → VoteEvent → VoteListener → reward commands (console)
 - Legacy per-service keys are no longer used.
 - Every vote and its pending reward are saved in one transaction before scheduling delivery.
 - Commands that fail or throw remain retryable; normal retries skip completed commands.
+- `votifier.daily-vote-limit` defaults to 1 per player across all services; 0 disables it.
+- Live votes check the daily limit and insert the vote/reward in the same synchronized transaction.
+- Daily windows use server JVM timezone and `votes.received_at` (server receipt epoch milliseconds); rejected votes are not stored/rewarded. Existing rows are backfilled from legacy second/millisecond timestamps.
 
 ### PlaceholderAPI
 - Optional `provided` Maven dependency and `softdepend` in `plugin.yml`; never shade the API.
