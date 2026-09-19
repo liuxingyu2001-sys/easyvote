@@ -8,7 +8,7 @@
 - 支持 Folia（异步调度安全）
 - 可配置的首次与普通投票奖励（所有网站合并计数）
 - 首次投票专属奖励
-- 累计投票里程碑奖励（每位玩家每里程碑仅触发一次）
+- 累计投票里程碑手动领取，达标发送可点击提醒，支持 CraftEngine 物品预览
 - SQLite 数据存储，自动从旧版 CSV 迁移
 - RSA 密钥对首次运行自动生成
 - 调试模式（保存投票详情到文件）
@@ -21,7 +21,7 @@
 
 ## 安装
 
-1. 下载 `Liu-EasyVote-1.3.4.jar`
+1. 下载 `Liu-EasyVote-1.3.5.jar`
 2. 放入服务器 `plugins/` 目录
 3. 重启服务器
 4. 将控制台输出的 Votifier 公钥复制到投票网站
@@ -30,6 +30,7 @@
 
 | 命令 | 说明 | 权限 |
 |------|------|------|
+| `/easyvote rewards` | 打开自己的里程碑奖励领取界面 | `easyvote.rewards`（默认所有玩家） |
 | `/easyvote reload` | 重新加载配置 | `easyvote.admin` |
 | `/easyvote pubkey` | 显示 Votifier 公钥 | `easyvote.admin` |
 | `/easyvote votestats [玩家名]` | 查看全服或指定玩家的投票统计 | `easyvote.admin` |
@@ -104,7 +105,7 @@ votifier:
 
 投票记录和待发奖励在同一数据库事务中保存，在线玩家也先入队。离线奖励会在上线后延迟发放（`votifier.join-reward-delay-seconds`，默认 5 秒；0 表示下一 tick）。
 
-奖励命令返回失败、抛出异常或玩家下线时保留未完成进度。玩家再次上线、再次投票、插件启用或执行 `/easyvote reload` 时，会尝试给在线玩家补发。里程碑全部命令成功后才标记已领取；查询的待发条数不包括里程碑。
+奖励命令返回失败、抛出异常或玩家下线时保留未完成进度。玩家再次上线、再次投票、插件启用或执行 `/easyvote reload` 时，会尝试给在线玩家补发首次/普通投票奖励，并提醒可领取的里程碑。里程碑只在玩家点击领取时执行，失败后再次点击续发，全部命令成功后才标记已领取；查询的待发条数不包括里程碑。
 
 每条成功命令都保存进度，正常重试跳过已成功命令。可修正尚未执行的命令后 reload；部分发放的奖励若修改了已执行命令的前缀或顺序，将继续使用原命令快照以避免错发。不要在部分发放期间重排命令。
 
@@ -112,19 +113,41 @@ votifier:
 
 ### 累计里程碑
 
-在 `votifier.cumulative.milestones` 中配置，每个里程碑触发一次性额外奖励：
+在 `votifier.cumulative.milestones` 中配置，每位玩家每档只能手动领取一次。达标后收到“已达到多少次、可领取哪些奖励”的聊天提醒，点击整条消息打开界面，悬停预览物品。普通玩家也可以使用 `/easyvote rewards`（不带参数的 `/easyvote` 也会为非管理员打开界面）。
+
+同一次在线期间每档只提醒一次；重新上线、插件启用、reload 后会再次提醒未领取档位。离线达标也会在上线后提醒，沿用 `join-reward-delay-seconds` 延迟。首次/普通奖励发放失败不会阻止里程碑提醒和领取。
+
+格式参考 LiuInvite：`commands` 决定实际奖励，`display` 决定界面与悬停外观，`description` 决定聊天里的奖励说明；这些展示字段不会自动发放物品，请与命令保持一致。
 
 ```yaml
-cumulative:
-  enabled: true
-  milestones:
-    - count: 10
-      commands:
-        - "give %player% diamond 10"
-    - count: 50
-      commands:
-        - "give %player% netherite_ingot 5"
+votifier:
+  cumulative:
+    enabled: true
+    gui-title: "&6累计投票奖励"
+    milestones:
+      - count: 10
+        description: "&b钻石 ×10 &7+ &e5000 金币"
+        display:
+          slot: 20
+          material: DIAMOND
+          # 可选，填入实际 CE 物品 ID；优先于 material
+          # craftengine_model: "namespace:item_id"
+          name: "&a累计投票 %count% 次奖励"
+          lore:
+            - "&7奖励：&b钻石 ×10"
+            - "&7奖励：&e5000 金币"
+        commands:
+          - "give %player% diamond 10"
+          - "money give %player% 5000"
 ```
+
+`display.craftengine_model` 与 LiuInvite 使用相同字段。安装并启用 CraftEngine 后，直接构建 CE 物品，保留其模型数据和原有物品说明；未安装、ID 无效或 API 不兼容时回退 `material`，默认箱子，并输出一次警告。未填写 `display.name` 时保留 CE 原物品名。聊天悬停和界面使用相同图标。实际领取仍执行 `commands`，CE 奖励请配置服务器所用的 CE 发放命令。
+
+`display.slot` 为 0–44；45–53 为翻页与统计栏。重复或非法槽位自动安排空位，超过 45 档自动分页。`states.locked/available/received` 可配置状态 `lore`（追加），以及可选 `material`、`craftengine_model`、`name` 覆盖。状态只指定原版 `material` 时会替换原 CE 图标。文本支持 `&` 颜色或 MiniMessage 格式。
+
+`messages.available` 支持 `%count%`（档位）、`%votes%`（当前票数）、`%rewards%`（奖励说明）。奖励说明缺省时使用 `display.lore`，再回退 `display.name` 或档位名称。领取命令中的 `%service%`、`%address%` 使用按入库顺序解锁该档位的投票记录。
+
+升级保留旧的 `count + commands` 配置、已领取记录与部分发放进度，已有达标未领取档位直接转为可手动领取。菜单与消息设置自动补入，旧档位请自行补充 `description` 和 `display`，以显示准确的奖励内容与 CE 图标。修改后执行 `/easyvote reload` 生效。
 
 ## 构建
 
@@ -132,7 +155,7 @@ cumulative:
 mvn clean package
 ```
 
-输出：`target/Liu-EasyVote-1.3.4.jar`
+输出：`target/Liu-EasyVote-1.3.5.jar`
 
 ## 许可
 

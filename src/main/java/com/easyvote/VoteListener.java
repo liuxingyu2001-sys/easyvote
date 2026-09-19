@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -24,16 +23,14 @@ public class VoteListener implements Listener {
 
     private final EasyVotePlugin plugin;
     private final VoteHistory voteHistory;
-    private final MilestoneTracker milestoneTracker;
     private final RewardDelivery rewardDelivery;
     private volatile List<String> firstVoteCommands = List.of();
     private volatile List<String> voteCommands = List.of();
     private final Set<String> pendingRewardDispatches = ConcurrentHashMap.newKeySet();
 
-    public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory, MilestoneTracker milestoneTracker) {
+    public VoteListener(EasyVotePlugin plugin, VoteHistory voteHistory) {
         this.plugin = plugin;
         this.voteHistory = voteHistory;
-        this.milestoneTracker = milestoneTracker;
         this.rewardDelivery = new RewardDelivery(voteHistory, plugin.getLogger());
         loadRewards();
     }
@@ -156,16 +153,17 @@ public class VoteListener implements Listener {
     private synchronized void deliverPendingRewards(Player player) {
         String playerName = player.getName();
         List<VoteHistory.PendingReward> pending = voteHistory.getPendingRewards(playerName);
-        for (VoteHistory.PendingReward reward : pending) {
-            List<String> commands = reward.isFirstVote() ? firstVoteCommands : voteCommands;
-            if (!deliverCommands(player, "vote:" + reward.getId(), commands,
-                    reward.getServiceName(), reward.getAddress())) return;
-            // Ordinary rewards and milestone rewards have separate persisted progress.
-            checkCumulativeMilestones(playerName, reward.getServiceName(), reward.getAddress(), player);
-            voteHistory.deletePendingReward(reward.getId());
+        try {
+            for (VoteHistory.PendingReward reward : pending) {
+                List<String> commands = reward.isFirstVote() ? firstVoteCommands : voteCommands;
+                if (!deliverCommands(player, "vote:" + reward.getId(), commands,
+                        reward.getServiceName(), reward.getAddress())) return;
+                voteHistory.deletePendingReward(reward.getId());
+            }
+        } finally {
+            // Milestones only notify here, including when an ordinary reward fails.
+            plugin.getMilestoneMenu().notifyAvailable(player);
         }
-        // Retry failed milestones even if all ordinary rewards were already delivered.
-        if (pending.isEmpty()) checkCumulativeMilestones(playerName, "", "", player);
     }
 
     private boolean deliverCommands(Player player, String rewardKey, List<String> commands,
@@ -175,57 +173,6 @@ public class VoteListener implements Listener {
             .toList();
         return rewardDelivery.deliver(player.getName(), rewardKey, processed, player::isOnline,
             command -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command));
-    }
-
-    private void checkCumulativeMilestones(String playerName, String serviceName, String address, Player player) {
-        if (!plugin.getConfig().getBoolean("votifier.cumulative.enabled", true)) {
-            return;
-        }
-
-        var milestonesSection = plugin.getConfig().getList("votifier.cumulative.milestones");
-        if (milestonesSection == null || milestonesSection.isEmpty()) {
-            return;
-        }
-
-        int totalVotes = voteHistory.getPlayerVoteCount(playerName);
-        long timestamp = System.currentTimeMillis();
-
-        for (Object obj : milestonesSection) {
-            if (!(obj instanceof Map)) {
-                continue;
-            }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> milestone = (Map<String, Object>) obj;
-
-            int count;
-            Object countObj = milestone.get("count");
-            if (countObj instanceof Number number) {
-                count = number.intValue();
-            } else {
-                continue;
-            }
-
-            if (count <= 0 || totalVotes < count) {
-                continue;
-            }
-
-            Object commandsObj = milestone.get("commands");
-            if (!(commandsObj instanceof List<?> rawCommands) || rawCommands.isEmpty()) {
-                // Do not consume a milestone that has no usable reward commands.
-                continue;
-            }
-
-            if (milestoneTracker.hasReceived(playerName, count)) continue;
-            List<String> commands = new ArrayList<>();
-            for (Object objCommand : rawCommands) {
-                if (objCommand instanceof String command && !command.isBlank()) commands.add(command.trim());
-            }
-            if (deliverCommands(player, "milestone:" + count, commands, serviceName, address)) {
-                milestoneTracker.markIfNotReceived(playerName, count, timestamp);
-                plugin.getLogger().info(playerName + " 已领取累计投票里程碑 " + count + " 次奖励");
-            }
-
-        }
     }
 
     private String replaceVariables(String command, String playerName, String serviceName, String address, Player player) {

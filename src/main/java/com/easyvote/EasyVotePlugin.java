@@ -16,7 +16,7 @@ public class EasyVotePlugin extends JavaPlugin {
     private VoteListener voteListener;
     private MilestoneTracker milestoneTracker;
     private boolean votifierEnabled;
-    private boolean cumulativeEnabled;
+    private MilestoneMenu milestoneMenu;
     private boolean debugEnabled;
     private volatile int dailyVoteLimit = 1;
     private Runnable unregisterPlaceholders = () -> {};
@@ -119,6 +119,19 @@ public class EasyVotePlugin extends JavaPlugin {
             getConfig().set("votifier.daily-vote-limit", 1);
             needsSave = true;
         }
+        // Add menu/message settings without replacing existing milestone commands or display definitions.
+        var defaults = getConfig().getDefaults();
+        if (defaults != null) {
+            for (String key : defaults.getKeys(true)) {
+                if (!(key.equals("votifier.cumulative.gui-title")
+                        || key.startsWith("votifier.cumulative.messages.")
+                        || key.startsWith("votifier.cumulative.states."))) continue;
+                if (!defaults.isConfigurationSection(key) && !getConfig().contains(key, true)) {
+                    getConfig().set(key, defaults.get(key));
+                    needsSave = true;
+                }
+            }
+        }
         
         if (needsSave) {
             saveConfig();
@@ -128,7 +141,6 @@ public class EasyVotePlugin extends JavaPlugin {
 
     private void loadConfig() {
         votifierEnabled = getConfig().getBoolean("votifier.enabled", true);
-        cumulativeEnabled = getConfig().getBoolean("votifier.cumulative.enabled", true);
         debugEnabled = getConfig().getBoolean("debug", false);
         dailyVoteLimit = getConfig().getInt("votifier.daily-vote-limit", 1);
         if (dailyVoteLimit < 0) {
@@ -142,6 +154,7 @@ public class EasyVotePlugin extends JavaPlugin {
         reloadConfig();
         updateConfig();
         loadConfig();
+        if (milestoneMenu != null) milestoneMenu.reload();
         if (voteListener != null) {
             voteListener.reloadRewards();
             voteListener.retryOnlineRewards();
@@ -185,7 +198,10 @@ public class EasyVotePlugin extends JavaPlugin {
         
         milestoneTracker = new MilestoneTracker(db);
         voteHistory = new VoteHistory(db);
-        voteListener = new VoteListener(this, voteHistory, milestoneTracker);
+        milestoneMenu = new MilestoneMenu(this, new MilestoneRewards(db, voteHistory, milestoneTracker, getLogger()));
+        milestoneMenu.reload();
+        getServer().getPluginManager().registerEvents(milestoneMenu, this);
+        voteListener = new VoteListener(this, voteHistory);
         getServer().getPluginManager().registerEvents(voteListener, this);
         voteListener.retryOnlineRewards();
         
@@ -211,6 +227,10 @@ public class EasyVotePlugin extends JavaPlugin {
     
     public MilestoneTracker getMilestoneTracker() {
         return milestoneTracker;
+    }
+
+    MilestoneMenu getMilestoneMenu() {
+        return milestoneMenu;
     }
 
     public boolean isDebugEnabled() {

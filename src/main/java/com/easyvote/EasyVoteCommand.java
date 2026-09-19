@@ -13,6 +13,19 @@ public class EasyVoteCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if ((args.length == 0 && sender instanceof Player && !sender.hasPermission("easyvote.admin"))
+                || (args.length > 0 && args[0].equalsIgnoreCase("rewards"))) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(ChatColor.RED + "此命令只能由玩家使用。");
+            } else if (!player.hasPermission("easyvote.rewards")) {
+                player.sendMessage(ChatColor.RED + "你没有权限领取投票里程碑奖励。");
+            } else {
+                MilestoneMenu menu = EasyVotePlugin.getInstance().getMilestoneMenu();
+                if (menu == null) player.sendMessage(ChatColor.RED + "投票数据库未就绪。");
+                else menu.open(player);
+            }
+            return true;
+        }
         if (!sender.hasPermission("easyvote.admin")) {
             sender.sendMessage(ChatColor.RED + "你没有权限使用此命令!");
             return true;
@@ -135,6 +148,7 @@ public class EasyVoteCommand implements CommandExecutor {
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "=== EasyVote 帮助 ===");
+        sender.sendMessage(ChatColor.YELLOW + "/easyvote rewards" + ChatColor.WHITE + " - 打开里程碑奖励领取界面");
         sender.sendMessage(ChatColor.YELLOW + "/easyvote reload" + ChatColor.WHITE + " - 重新加载配置");
         sender.sendMessage(ChatColor.YELLOW + "/easyvote pubkey" + ChatColor.WHITE + " - 显示 Votifier 公钥");
         sender.sendMessage(ChatColor.YELLOW + "/easyvote votestats [玩家名]" + ChatColor.WHITE + " - 显示投票统计");

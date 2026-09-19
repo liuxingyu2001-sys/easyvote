@@ -21,6 +21,8 @@ public class EasyVoteTabCompleter implements TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
 
+        if (args.length == 1 && sender instanceof Player && sender.hasPermission("easyvote.rewards")
+                && "rewards".startsWith(args[0].toLowerCase(Locale.ROOT))) completions.add("rewards");
         if (!sender.hasPermission("easyvote.admin")) {
             return completions;
         }

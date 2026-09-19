@@ -259,6 +259,23 @@ public class VoteHistory {
         }
     }
 
+    /** One-based vote ordinal, ordered by server insertion rather than the site's timestamp. */
+    VoteRecord getPlayerVoteAt(String playerName, int ordinal) {
+        synchronized (db) {
+            try (PreparedStatement ps = db.getConnection().prepareStatement(
+                    "SELECT service_name, address, timestamp FROM votes WHERE player_name = ? ORDER BY id LIMIT 1 OFFSET ?")) {
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
+                ps.setInt(2, ordinal - 1);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) throw new IllegalStateException("里程碑对应投票不存在");
+                    return new VoteRecord(playerName, rs.getString(1), rs.getString(2), rs.getLong(3));
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException("查询里程碑投票失败", e);
+            }
+        }
+    }
+
     public List<VoteRecord> getRecentVotes(int limit) {
         synchronized (db) {
             List<VoteRecord> result = new ArrayList<>();

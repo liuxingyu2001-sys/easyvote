@@ -7,13 +7,15 @@ libraries:
   - org.xerial:sqlite-jdbc:3.49.1.0
 author: liuxingyu2001
 description: 轻量级 Votifier 投票监听插件，支持自定义投票奖励
-softdepend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI, CraftEngine]
 commands:
   easyvote:
     description: 管理 EasyVote 投票插件
-    usage: /easyvote <reload|pubkey|votestats|votes|testvote|clearvotes>
-    permission: easyvote.admin
+    usage: /easyvote <rewards|reload|pubkey|votestats|votes|testvote|clearvotes>
 permissions:
+  easyvote.rewards:
+    description: 允许打开并领取自己的投票里程碑奖励
+    default: true
   easyvote.admin:
     description: 允许管理 EasyVote 投票插件
     default: op
