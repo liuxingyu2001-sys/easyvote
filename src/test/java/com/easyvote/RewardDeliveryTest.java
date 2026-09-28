@@ -66,6 +66,17 @@ public class RewardDeliveryTest {
         assertEquals(20, history.getPendingRewardCount("Steve"));
     }
 
+    @Test public void rewardCommandsTranslateColorCodesAtDispatch() {
+        List<String> dispatched = new ArrayList<>();
+        assertTrue(delivery.deliver("Steve", "vote:color", List.of("msg Steve &A你好 &6&l奖励 & 普通文本"),
+            () -> true, dispatched::add));
+        assertEquals(List.of("msg Steve §a你好 §6§l奖励 & 普通文本"), dispatched);
+        dispatched.clear();
+        assertTrue(delivery.deliver("Steve", "milestone:color", List.of("msg Steve &c领取成功"),
+            () -> true, dispatched::add));
+        assertEquals(List.of("msg Steve §c领取成功"), dispatched);
+    }
+
     @Test public void failedCommandResumesAfterRestartWithoutRepeatingSuccessfulCommands() {
         List<String> commands = List.of("money Steve", "give Steve", "msg Steve");
         List<String> dispatched = new ArrayList<>();

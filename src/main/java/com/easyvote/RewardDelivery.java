@@ -1,5 +1,7 @@
 package com.easyvote;
 
+import org.bukkit.ChatColor;
+
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -28,7 +30,7 @@ final class RewardDelivery {
             if (!online.getAsBoolean()) return false;
             String command = progress.commands().get(i);
             try {
-                if (!dispatch.apply(command)) {
+                if (!dispatch.apply(colorizeCommand(command))) {
                     logger.warning(playerName + " 奖励命令失败，保留待发状态: " + command);
                     return false;
                 }
@@ -39,5 +41,9 @@ final class RewardDelivery {
             history.saveRewardProgress(playerName, rewardKey, i + 1);
         }
         return true;
+    }
+
+    static String colorizeCommand(String command) {
+        return ChatColor.translateAlternateColorCodes('&', command);
     }
 }
