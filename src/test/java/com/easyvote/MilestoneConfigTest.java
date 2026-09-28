@@ -1,5 +1,6 @@
 package com.easyvote;
 
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.Test;
 
@@ -45,6 +46,24 @@ public class MilestoneConfigTest {
             Map.of("count", 10, "commands", List.of("duplicate"))), logger);
         assertEquals(1, rewards.size());
         assertEquals(List.of("first"), rewards.getFirst().commands());
+    }
+
+    @Test public void availableMessageParsesAmpersandCodesWithoutSectionCodes() {
+        String message = "&6[投票里程碑] &e已达到 8 次！可领取：圣光普照 &a[点击打开]";
+        String rendered = LegacyComponentSerializer.legacySection().serialize(MilestoneMenu.text(message));
+        assertEquals("§6[投票里程碑] §e已达到 8 次！可领取：圣光普照 §a[点击打开]", rendered);
+    }
+
+    @Test public void mixedColorCodesInAvailableMessageAreBothParsed() {
+        String message = "&6[投票里程碑] &e已达到 8 次！可领取：§b圣光普照 &a[点击打开]";
+        String rendered = LegacyComponentSerializer.legacySection().serialize(MilestoneMenu.text(message));
+        assertFalse(rendered.contains("&6"));
+        assertFalse(rendered.contains("&e"));
+        assertFalse(rendered.contains("&a"));
+        assertTrue(rendered.contains("§6[投票里程碑]"));
+        assertTrue(rendered.contains("§e已达到 8 次！可领取："));
+        assertTrue(rendered.contains("§b圣光普照"));
+        assertTrue(rendered.contains("§a[点击打开]"));
     }
 
     @Test public void paginationRetainsAllTiersEvenWithConflictingOrReservedSlots() {

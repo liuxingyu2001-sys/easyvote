@@ -6,6 +6,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -244,8 +245,8 @@ final class MilestoneMenu implements Listener {
     }
 
     static Component text(String value) {
-        Component component = value.indexOf('§') >= 0 ? LegacyComponentSerializer.legacySection().deserialize(value)
-            : value.indexOf('&') >= 0 ? LegacyComponentSerializer.legacyAmpersand().deserialize(value)
+        String legacy = ChatColor.translateAlternateColorCodes('&', value);
+        Component component = legacy.indexOf('§') >= 0 ? LegacyComponentSerializer.legacySection().deserialize(legacy)
             : MiniMessage.miniMessage().deserialize(value);
         return component.decoration(TextDecoration.ITALIC, false);
     }
