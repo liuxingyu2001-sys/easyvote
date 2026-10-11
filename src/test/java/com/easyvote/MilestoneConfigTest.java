@@ -33,11 +33,27 @@ public class MilestoneConfigTest {
         var rewards = MilestoneReward.load(List.of(
             Map.of("count", 10, "commands", List.of("give %player% diamond 10")),
             Map.of("count", 20, "commands", List.of("ce give %player% test:item"), "display",
-                Map.of("craftengine_model", "test:item", "material", "DIAMOND", "lore", List.of("自定义钻石")))
+                Map.of("craftengine_model", "test:item", "material", "DIAMOND", "name", "&b自定义钻石",
+                    "lore", List.of("这行不该出现在提醒里")))
         ), logger);
         assertEquals(2, rewards.size());
-        assertEquals("自定义钻石", rewards.get(1).description());
+        assertEquals("&b自定义钻石", rewards.get(1).description());
         assertEquals("test:item", rewards.get(1).display().get("craftengine_model"));
+    }
+
+    @Test public void reminderDescriptionNeverFallsBackToLore() {
+        var rewards = MilestoneReward.load(List.of(Map.of("count", 5, "commands", List.of("give"),
+            "display", Map.of("lore", List.of("第一行", "第二行")))), logger);
+        assertEquals("累计投票 5 次奖励", rewards.getFirst().description());
+        assertFalse(rewards.getFirst().description().contains("第一行"));
+    }
+
+    @Test public void reminderMessagesSupportListsAndNewlines() {
+        assertEquals(List.of("第一行", "第二行", "第三行"),
+            MilestoneMenu.lines(List.of("第一行", "第二行\\n第三行"), "fallback"));
+        assertEquals(List.of("单行"), MilestoneMenu.lines("单行", "fallback"));
+        assertEquals(List.of("回退"), MilestoneMenu.lines("   ", "回退"));
+        assertEquals(List.of("a", "", "b"), MilestoneMenu.lines("a\n\nb\n", "fallback"));
     }
 
     @Test public void invalidOrDuplicateCountsCannotCreateMultipleClaims() {

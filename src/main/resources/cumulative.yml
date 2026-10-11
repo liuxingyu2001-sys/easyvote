@@ -7,9 +7,12 @@ enabled: true
 
 gui-title: "&6累计投票奖励"
 messages:
-  # %count% 达标档位；%votes% 当前票数；%rewards% 该档 description
+  # 支持变量：%count% 达标档位；%votes% 当前票数；%name% 奖励显示名；%rewards%/%description% 该档 description
+  # 可写成单行字符串，也可写成列表（每项一行）；行内 \n 或真实换行也会拆成多行
   # 整条消息可点击打开界面，悬停预览奖励图标（支持 CE）
-  available: "&6[投票里程碑] &e已达到 %count% 次！可领取：%rewards% &a[点击打开]"
+  available:
+    - "&6[投票里程碑] &e已达到 &c%count% &e次！可领取：&f%name%"
+    - "&a[点击打开领取]"
   success: "&a已领取累计投票 %count% 次奖励！"
   failed: "&c奖励未全部发放，请稍后再次点击领取，已发部分不会重复执行。"
 

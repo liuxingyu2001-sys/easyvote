@@ -59,11 +59,12 @@ final class MilestoneMenu implements Listener {
                 for (MilestoneReward reward : available) {
                     if (sent.contains(reward.count())) continue;
                     ItemStack item = render(reward, MilestoneRewards.State.AVAILABLE, votes);
-                    Component message = text(format(plugin.getCumulativeConfig().getString("messages.available",
-                        "&6[投票里程碑] &e已达到 %count% 次！可领取：%rewards% &a[点击打开]"), reward, votes))
-                        .clickEvent(ClickEvent.runCommand("/easyvote rewards"))
-                        .hoverEvent(item.asHoverEvent());
-                    player.sendMessage(message);
+                    for (String line : lines(plugin.getCumulativeConfig().get("messages.available"), DEFAULT_AVAILABLE)) {
+                        Component message = text(format(line, reward, votes))
+                            .clickEvent(ClickEvent.runCommand("/easyvote rewards"))
+                            .hoverEvent(item.asHoverEvent());
+                        player.sendMessage(message);
+                    }
                     sent.add(reward.count());
                 }
             } catch (RuntimeException e) {
@@ -162,9 +163,11 @@ final class MilestoneMenu implements Listener {
                     case BUSY -> "&e奖励正在发放，请稍候。";
                     case FAILED -> "&c奖励未全部发放，请稍后再次点击领取；已成功的命令不会重复执行。";
                 };
-                String message = plugin.getCumulativeConfig().getString("messages." + result.name().toLowerCase(Locale.ROOT), fallback)
-                    .replace("%count%", count.toString());
-                player.getScheduler().run(plugin, reply -> player.sendMessage(text(message)), null);
+                List<Component> reply = lines(plugin.getCumulativeConfig().get(
+                        "messages." + result.name().toLowerCase(Locale.ROOT)), fallback).stream()
+                    .map(line -> text(line.replace("%count%", count.toString())))
+                    .toList();
+                player.getScheduler().run(plugin, ignored -> reply.forEach(player::sendMessage), null);
                 open(player, session.page, session);
             });
         } catch (RuntimeException e) {
@@ -240,8 +243,36 @@ final class MilestoneMenu implements Listener {
     }
 
     private static String format(String value, MilestoneReward reward, int votes) {
-        return value.replace("%rewards%", reward.description()).replace("%count%", Integer.toString(reward.count()))
+        String name = MilestoneReward.string(reward.display(), "name", "");
+        if (name.isBlank()) name = reward.description();
+        return value.replace("%name%", name)
+            .replace("%rewards%", reward.description())
+            .replace("%description%", reward.description())
+            .replace("%count%", Integer.toString(reward.count()))
             .replace("%votes%", Integer.toString(votes));
+    }
+
+    private static final String DEFAULT_AVAILABLE = "&6[投票里程碑] &e已达到 %count% 次！可领取：%name% &a[点击打开]";
+
+    /** A message may be one string or a list; literal \\n and real newlines each become a line. */
+    static List<String> lines(Object raw, String fallback) {
+        List<String> parts = new ArrayList<>();
+        if (raw instanceof List<?> list) {
+            for (Object element : list) {
+                if (element instanceof String text && !text.isBlank()) parts.add(text);
+            }
+        } else if (raw instanceof String text && !text.isBlank()) {
+            parts.add(text);
+        }
+        if (parts.isEmpty()) parts.add(fallback);
+        List<String> lines = new ArrayList<>();
+        for (String part : parts) {
+            for (String line : part.split("\\R|\\\\n", -1)) lines.add(line);
+        }
+        while (!lines.isEmpty() && lines.getFirst().isBlank()) lines.removeFirst();
+        while (!lines.isEmpty() && lines.getLast().isBlank()) lines.removeLast();
+        if (lines.isEmpty()) lines.add(fallback);
+        return List.copyOf(lines);
     }
 
     static Component text(String value) {

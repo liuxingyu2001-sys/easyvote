@@ -25,8 +25,9 @@ record MilestoneReward(int count, List<String> commands, String description, Map
             }
             Map<?, ?> display = Map.copyOf(displayValues);
             String description = string(map, "description", "");
-            if (description.isBlank()) description = String.join(" / ", strings(display.get("lore")));
-            if (description.isBlank()) description = string(display, "name", "累计投票 " + count + " 次奖励");
+            // Never fall back to lore: the reminder must stay a short one-line label.
+            if (description.isBlank()) description = string(display, "name", "");
+            if (description.isBlank()) description = "累计投票 " + count + " 次奖励";
             MilestoneReward reward = new MilestoneReward(count, strings(map.get("commands")), description, display);
             if (rewards.putIfAbsent(count, reward) != null) {
                 logger.warning("忽略重复的里程碑 count: " + count);
