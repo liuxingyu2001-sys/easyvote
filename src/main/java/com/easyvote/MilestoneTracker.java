@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Locale;
 
+/** 里程碑领取状态；INSERT IGNORE / INSERT OR IGNORE 保证跨服只成功一次。 */
 public class MilestoneTracker {
 
     private final DatabaseManager db;
@@ -16,15 +17,16 @@ public class MilestoneTracker {
 
     public boolean hasReceived(String playerName, int count) {
         synchronized (db) {
-            try (PreparedStatement ps = db.getConnection().prepareStatement(
-                    "SELECT 1 FROM milestones WHERE player_name = ? AND count = ?")) {
+            try (Connection conn = db.openConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "SELECT 1 FROM " + db.table("milestones") + " WHERE player_name = ? AND count = ?")) {
                 ps.setString(1, playerName.toLowerCase(Locale.ROOT));
                 ps.setInt(2, count);
                 try (ResultSet rs = ps.executeQuery()) {
                     return rs.next();
                 }
-            } catch (SQLException e) {
-                throw new IllegalStateException("查询里程碑失败", e);
+            } catch (SQLException error) {
+                throw new IllegalStateException("查询里程碑失败", error);
             }
         }
     }
@@ -35,38 +37,51 @@ public class MilestoneTracker {
      */
     public boolean markIfNotReceived(String playerName, int count, long timestamp) {
         synchronized (db) {
-            String sql = "INSERT OR IGNORE INTO milestones (player_name, count, timestamp) VALUES (?, ?, ?)";
-            try {
-                Connection conn = db.getConnection();
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, playerName.toLowerCase(Locale.ROOT));
-                    ps.setInt(2, count);
-                    ps.setLong(3, timestamp);
-                    return ps.executeUpdate() > 0;
-                }
-            } catch (SQLException e) {
-                throw new IllegalStateException("保存里程碑失败", e);
+            String sql = db.isMySQL()
+                    ? "INSERT IGNORE INTO " + db.table("milestones") + " (player_name, count, timestamp) VALUES (?, ?, ?)"
+                    : "INSERT OR IGNORE INTO " + db.table("milestones") + " (player_name, count, timestamp) VALUES (?, ?, ?)";
+            try (Connection conn = db.openConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
+                ps.setInt(2, count);
+                ps.setLong(3, timestamp);
+                return ps.executeUpdate() > 0;
+            } catch (SQLException error) {
+                throw new IllegalStateException("保存里程碑失败", error);
+            }
+        }
+    }
+
+    /** 发奖失败时回滚本次占位，让玩家可以重试；只删除本次插入的档位。 */
+    public void unmark(String playerName, int count) {
+        synchronized (db) {
+            try (Connection conn = db.openConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "DELETE FROM " + db.table("milestones") + " WHERE player_name = ? AND count = ?")) {
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
+                ps.setInt(2, count);
+                ps.executeUpdate();
+            } catch (SQLException error) {
+                throw new IllegalStateException("回滚里程碑失败", error);
             }
         }
     }
 
     public int getPlayerHighestMilestone(String playerName) {
         synchronized (db) {
-            String sql = "SELECT MAX(count) FROM milestones WHERE player_name = ?";
-            try {
-                Connection conn = db.getConnection();
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, playerName.toLowerCase(Locale.ROOT));
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) {
-                            int val = rs.getInt(1);
-                            return rs.wasNull() ? 0 : val;
-                        }
+            try (Connection conn = db.openConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "SELECT MAX(count) FROM " + db.table("milestones") + " WHERE player_name = ?")) {
+                ps.setString(1, playerName.toLowerCase(Locale.ROOT));
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        int value = rs.getInt(1);
+                        return rs.wasNull() ? 0 : value;
                     }
                 }
                 return 0;
-            } catch (SQLException e) {
-                throw new IllegalStateException("数据库操作失败", e);
+            } catch (SQLException error) {
+                throw new IllegalStateException("数据库操作失败", error);
             }
         }
     }

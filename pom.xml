@@ -6,7 +6,7 @@
 
     <groupId>com.easyvote</groupId>
     <artifactId>EasyVote</artifactId>
-    <version>1.4.1</version>
+    <version>1.4.2</version>
     <packaging>jar</packaging>
 
     <name>EasyVote</name>
@@ -15,6 +15,7 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <liulib.version>1.0.5</liulib.version>
     </properties>
 
     <build>
@@ -87,7 +88,13 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.1-R0.1-SNAPSHOT</version>
+            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.liuxingyu</groupId>
+            <artifactId>LiuLib</artifactId>
+            <version>${liulib.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -101,11 +108,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- 测试环境使用 SQLite；运行时驱动由 LiuLib 的 libraries 提供 -->
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
             <version>3.49.1.0</version>
-            <scope>provided</scope>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>

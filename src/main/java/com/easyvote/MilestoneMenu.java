@@ -5,6 +5,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import com.liuxingyu.liulib.LiuLib;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -20,7 +21,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -52,7 +52,7 @@ final class MilestoneMenu implements Listener {
     void notifyAvailable(Player player) {
         player.getScheduler().run(plugin, task -> {
             try {
-                Set<Integer> sent = notified.computeIfAbsent(player.getUniqueId(), key -> new HashSet<>());
+                Set<Integer> sent = notified.computeIfAbsent(player.getUniqueId(), key -> ConcurrentHashMap.newKeySet());
                 List<MilestoneReward> available = rewards.available(player.getName());
                 sent.retainAll(available.stream().map(MilestoneReward::count).toList());
                 int votes = plugin.getVoteHistory().getPlayerVoteCount(player.getName());
@@ -223,22 +223,22 @@ final class MilestoneMenu implements Listener {
     private ItemStack baseItem(Map<?, ?> display) {
         String model = MilestoneReward.string(display, "craftengine_model", "");
         if (!model.isBlank()) {
-            try {
-                var craftEngine = Bukkit.getPluginManager().getPlugin("CraftEngine");
-                if (craftEngine == null || !craftEngine.isEnabled()) throw new IllegalStateException("CraftEngine 未启用");
-                // Optional API: do not require or shade a particular CraftEngine jar at build time.
-                Class<?> api = Class.forName("net.momirealms.craftengine.bukkit.api.CraftEngineItems", true,
-                    craftEngine.getClass().getClassLoader());
-                Object definition = api.getMethod("byId", String.class).invoke(null, model);
-                if (definition == null) throw new IllegalArgumentException("未知物品 ID");
-                ItemStack item = (ItemStack) definition.getClass().getMethod("buildBukkitItem").invoke(definition);
+            // LiuLib 物品规格优先（CE ID 也可写成 ce:ns:id / craftengine:ns:id）
+            ItemStack spec = LiuLibItems.buildOrNull(model);
+            if (spec != null) return spec;
+            if (LiuLib.items().isCraftEngineAvailable()) {
+                ItemStack item = LiuLib.items().craftEngine().build(model, 1, null);
                 if (item != null && !item.getType().isAir()) return item.clone();
-                throw new IllegalArgumentException("物品为空");
-            } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-                if (warned.add(model)) plugin.getLogger().warning("CE 物品显示失败，回退原版材质 [" + model + "]: " + e);
+                if (warned.add(model)) plugin.getLogger().warning("CE 物品显示失败，回退原版材质 [" + model + "]");
+            } else if (warned.add(model)) {
+                plugin.getLogger().warning("CraftEngine 未启用，回退原版材质 [" + model + "]");
             }
         }
-        Material material = Material.matchMaterial(MilestoneReward.string(display, "material", "CHEST"));
+        String raw = MilestoneReward.string(display, "material", "");
+        // LiuLib 完整规格（base64/nbt/lib:/ce:）优先，失败回退原版材质名
+        ItemStack spec = LiuLibItems.buildOrNull(raw);
+        if (spec != null) return spec;
+        Material material = Material.matchMaterial(raw.isBlank() ? "CHEST" : raw);
         return new ItemStack(material == null || !material.isItem() || material.isAir() ? Material.CHEST : material);
     }
 

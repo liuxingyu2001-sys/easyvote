@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class EasyVotePlugin extends JavaPlugin {
 
@@ -22,6 +23,7 @@ public class EasyVotePlugin extends JavaPlugin {
     private boolean debugEnabled;
     private volatile int dailyVoteLimit = 1;
     private Runnable unregisterPlaceholders = () -> {};
+    private final String instanceId = UUID.randomUUID().toString();
 
     @Override
     public void onEnable() {
@@ -31,13 +33,19 @@ public class EasyVotePlugin extends JavaPlugin {
         updateConfig();
         loadConfig();
         cumulativeConfig = CumulativeConfig.load(getDataFolder(), getConfig(), getLogger());
-        
+
+        if (!initDatabase()) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
         try {
             startVotifier();
         } catch (Exception e) {
             getLogger().severe("无法启动 Votifier 服务器: " + e.getMessage());
         }
-        
+        voteListener.retryOnlineRewards();
+
         getCommand("easyvote").setExecutor(new EasyVoteCommand());
         getCommand("easyvote").setTabCompleter(new EasyVoteTabCompleter());
         registerPlaceholders();
@@ -114,6 +122,19 @@ public class EasyVotePlugin extends JavaPlugin {
             getLogger().info("已加载投票奖励配置");
         }
 
+        if (!getConfig().contains("database")) {
+            getConfig().set("database.type", "sqlite");
+            getConfig().set("database.table-prefix", "");
+            getConfig().set("database.sqlite.file", "data.db");
+            getConfig().set("database.mysql.host", "127.0.0.1");
+            getConfig().set("database.mysql.port", 3306);
+            getConfig().set("database.mysql.database", "easyvote");
+            getConfig().set("database.mysql.username", "root");
+            getConfig().set("database.mysql.password", "");
+            getConfig().set("database.mysql.use-ssl", false);
+            getConfig().set("database.mysql.pool-size", 8);
+            needsSave = true;
+        }
         if (!getConfig().contains("votifier.join-reward-delay-seconds")) {
             getConfig().set("votifier.join-reward-delay-seconds", 5);
             needsSave = true;
@@ -144,6 +165,7 @@ public class EasyVotePlugin extends JavaPlugin {
         cumulativeConfig = CumulativeConfig.load(getDataFolder(), getConfig(), getLogger());
         updateConfig();
         loadConfig();
+        restartVotifier();
         if (milestoneMenu != null) milestoneMenu.reload();
         if (voteListener != null) {
             voteListener.reloadRewards();
@@ -151,9 +173,44 @@ public class EasyVotePlugin extends JavaPlugin {
         }
     }
 
+    /** 让 votifier.enabled / host / port / 密钥的修改在 reload 后也生效。 */
+    private void restartVotifier() {
+        if (votifierServer != null) {
+            votifierServer.stop();
+            votifierServer = null;
+        }
+        if (!votifierEnabled) {
+            return;
+        }
+        try {
+            startVotifier();
+        } catch (Exception error) {
+            getLogger().severe("重载后无法启动 Votifier 服务器: " + error.getMessage());
+        }
+    }
+
+    /** 初始化共享存储、里程碑和投票监听；Votifier 关闭时仍可查询/补发奖励。 */
+    private boolean initDatabase() {
+        try {
+            db = new DatabaseManager(this);
+            db.initialize();
+            milestoneTracker = new MilestoneTracker(db);
+            voteHistory = new VoteHistory(db);
+            milestoneMenu = new MilestoneMenu(this, new MilestoneRewards(db, voteHistory, milestoneTracker, getLogger()));
+            milestoneMenu.reload();
+            getServer().getPluginManager().registerEvents(milestoneMenu, this);
+            voteListener = new VoteListener(this, voteHistory);
+            getServer().getPluginManager().registerEvents(voteListener, this);
+            return true;
+        } catch (RuntimeException error) {
+            getLogger().severe("数据库初始化失败，插件将被禁用: " + error.getMessage());
+            return false;
+        }
+    }
+
     private void startVotifier() throws Exception {
         if (!votifierEnabled) {
-            getLogger().info("Votifier 服务器已禁用");
+            getLogger().info("Votifier 服务器已禁用（数据库与补发功能仍可用）");
             return;
         }
         
@@ -182,18 +239,6 @@ public class EasyVotePlugin extends JavaPlugin {
         }
         getLogger().info("----------------------------------------");
         getLogger().info("========================================");
-        
-        db = new DatabaseManager(this);
-        db.initialize();
-        
-        milestoneTracker = new MilestoneTracker(db);
-        voteHistory = new VoteHistory(db);
-        milestoneMenu = new MilestoneMenu(this, new MilestoneRewards(db, voteHistory, milestoneTracker, getLogger()));
-        milestoneMenu.reload();
-        getServer().getPluginManager().registerEvents(milestoneMenu, this);
-        voteListener = new VoteListener(this, voteHistory);
-        getServer().getPluginManager().registerEvents(voteListener, this);
-        voteListener.retryOnlineRewards();
         
         String host = getConfig().getString("votifier.host", "0.0.0.0");
         int port = getConfig().getInt("votifier.port", 10022);
@@ -233,5 +278,10 @@ public class EasyVotePlugin extends JavaPlugin {
 
     public int getDailyVoteLimit() {
         return dailyVoteLimit;
+    }
+
+    /** 本次启动的唯一标识，用于跨服占用待发奖励的租约。 */
+    public String getInstanceId() {
+        return instanceId;
     }
 }

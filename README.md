@@ -2,6 +2,8 @@
 
 轻量级 Votifier 兼容投票监听插件，支持自定义投票奖励与累计里程碑追踪。
 
+> **前置插件**：必须安装 **LiuLib 1.0.5+**。EasyVote 的 SQLite/MySQL 连接池、JDBC 驱动、调度器、物品规格解析与 CraftEngine 物品构建由 LiuLib 提供；缺少 LiuLib 时服务端会按 `depend` 拒绝加载本插件。可选安装 **liuitemlib** 后可使用 `lib:物品库ID` 引用（已列入 `softdepend`）。
+
 ## 功能特性
 
 - 兼容 Votifier v1 RSA 协议（1.9 握手）；现有明文 JSON 接口不等同于标准 Votifier v2
@@ -9,22 +11,25 @@
 - 可配置的首次与普通投票奖励（所有网站合并计数）
 - 首次投票专属奖励
 - 累计投票里程碑手动领取，达标发送可点击提醒，支持 CraftEngine 物品预览
-- SQLite 数据存储，自动从旧版 CSV 迁移
+- SQLite（单服，默认）/ MySQL（多服共享）数据存储，自动从旧版 CSV 迁移
+- 多服并发安全：每日上限、待发奖励租约、里程碑领取均使用数据库条件写入，同一条投票只会被一个子服处理
 - RSA 密钥对首次运行自动生成
 - 调试模式（保存投票详情到文件）
 - 可选 PlaceholderAPI 投票查询变量，支持当前玩家和指定离线玩家
 
 ## 环境要求
 
-- Paper / Folia 1.21.1+
+- Paper / Folia 1.21.1+（本版本使用 Paper 1.21.11 API 编译）
 - Java 21+
+- **LiuLib 1.0.5+**（硬依赖）
 
 ## 安装
 
-1. 下载 `Liu-EasyVote-1.3.6.jar`
+1. 下载 `Liu-EasyVote-1.4.1.jar` 与 `LiuLib-1.0.5.jar`
 2. 放入服务器 `plugins/` 目录
 3. 重启服务器
 4. 将控制台输出的 Votifier 公钥复制到投票网站
+5. 多服部署时把所有子服的 `database` 指向同一个 MySQL 库，并保持相同的 `table-prefix`
 
 ## 命令
 
@@ -71,6 +76,31 @@
 
 主配置位于 `plugins/EasyVote/config.yml`；累计里程碑奖励、领取界面与消息单独放在 `plugins/EasyVote/cumulative.yml`。`/easyvote reload` 会同时重载两个文件。
 
+### 数据库
+
+```yaml
+database:
+  type: sqlite          # sqlite = 单服本地文件；mysql = 多服共享
+  table-prefix: ""      # 多服共享 MySQL 时建议统一前缀，例如 easyvote_
+  sqlite:
+    file: data.db
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    database: easyvote
+    username: root
+    password: ""
+    use-ssl: false
+    pool-size: 8
+```
+
+- 修改 `database.type` 或连接参数后必须**重启服务端**；`/easyvote reload` 只重载 YAML 配置
+- MySQL 模式下投票记录与待发奖励在同一数据库事务中写入；多个子服同时收到同一投票时，每日上限与待发奖励租约保证只有一条被处理
+- 里程碑标记使用独立的原子条件写入，与投票奖励事务解耦
+- 待发奖励带 `claimed_by` / `claimed_at` 租约（5 分钟）；子服崩溃后租约会过期并被其它子服重新领取
+- 里程碑在命令开始执行前先原子标记，命令失败会回滚标记并保留可重试进度
+- 所有子服需系统时间同步；投票日期以接收服务器的本地时区自然日计算
+
 ### 每日投票上限
 
 ```yaml
@@ -109,7 +139,7 @@ votifier:
 
 每条成功命令都保存进度，正常重试跳过已成功命令。可修正尚未执行的命令后 reload；部分发放的奖励若修改了已执行命令的前缀或顺序，将继续使用原命令快照以避免错发。不要在部分发放期间重排命令。
 
-命令返回成功仅表示命令接受执行，其他插件静默拒绝奖励仍需查其日志。服务器恰在命令执行后、进度保存前崩溃时，重试可能重复该条命令；外部奖励命令与 SQLite 无法组成同一事务。旧版本已删除的待发记录或已误标记的里程碑无法自动恢复。
+命令返回成功仅表示命令接受执行，其他插件静默拒绝奖励仍需查其日志。服务器恰在命令执行后、进度保存前崩溃时，重试可能重复该条命令；外部奖励命令与 SQLite/MySQL 无法组成跨系统事务。旧版本已删除的待发记录或已误标记的里程碑无法自动恢复。
 
 ### 累计里程碑
 
@@ -141,6 +171,20 @@ milestones:
 
 `display.craftengine_model` 与 LiuInvite 使用相同字段。安装并启用 CraftEngine 后，直接构建 CE 物品，保留其模型数据和原有物品说明；未安装、ID 无效或 API 不兼容时回退 `material`，默认箱子，并输出一次警告。未填写 `display.name` 时保留 CE 原物品名。聊天悬停和界面使用相同图标。实际领取仍执行 `commands`，CE 奖励请配置服务器所用的 CE 发放命令。
 
+### 物品规格（display.material / states.*.material / craftengine_model）
+
+`display.material`、`states.locked/available/received.material` 以及 `display.craftengine_model` 都会先交给 LiuLib 的物品规格解析器，支持以下写法（解析失败时自动回退原有 `material` 材质名或 CraftEngine 模型逻辑，老配置行为不变）：
+
+| 写法 | 说明 |
+|------|------|
+| `DIAMOND` / `minecraft:diamond` | 原版材质（与原先一致） |
+| `DIAMOND:3` / `DIAMOND*3` | 原版材质 + 数量 3；展示图标沿用规格自带数量 |
+| `ce:namespace:item_id` / `craftengine:namespace:item_id` | CraftEngine 物品（与裸 CE ID `namespace:item_id` 等价） |
+| `base64:...` / `nbt:...` / `bytes:...` / `item:base64:...` | Paper 二进制序列化物品，完整保留附魔、NBT、组件与 PDC |
+| `lib:物品库ID` | 引用 liuitemlib 物品库条目（需安装并启用 liuitemlib） |
+
+提醒消息的悬停预览与领取界面使用同一个物品，因此编码物品（`base64:` / `lib:`）同样能显示真实外观；`name`/`lore` 仍按配置覆盖，未配置时保留规格自带的名称与说明。物品发放仍由 `commands` 执行，需要发放同类物品请配置对应命令。
+
 `display.slot` 为 0–44；45–53 为翻页与统计栏。重复或非法槽位自动安排空位，超过 45 档自动分页。`states.locked/available/received` 可配置状态 `lore`（追加），以及可选 `material`、`craftengine_model`、`name` 覆盖。状态只指定原版 `material` 时会替换原 CE 图标。文本支持 `&` 颜色或 MiniMessage 格式。
 
 `messages.available` 支持 `%count%`（档位）、`%votes%`（当前票数）、`%rewards%`（奖励说明）。奖励说明缺省时使用 `display.lore`，再回退 `display.name` 或档位名称。领取命令中的 `%service%`、`%address%` 使用按入库顺序解锁该档位的投票记录。
@@ -153,7 +197,7 @@ milestones:
 mvn clean package
 ```
 
-输出：`target/Liu-EasyVote-1.3.6.jar`
+输出：`target/Liu-EasyVote-1.4.1.jar`（瘦 jar，运行时依赖 LiuLib）
 
 ## 许可
 

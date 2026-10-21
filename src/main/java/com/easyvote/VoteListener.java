@@ -154,11 +154,25 @@ public class VoteListener implements Listener {
         String playerName = player.getName();
         List<VoteHistory.PendingReward> pending = voteHistory.getPendingRewards(playerName);
         try {
+            String owner = plugin.getInstanceId();
+            long now = System.currentTimeMillis();
             for (VoteHistory.PendingReward reward : pending) {
+                // 多服同时上线时只有一个子服能拿到这条待发奖励的租约
+                if (!voteHistory.claimPendingReward(reward.getId(), owner, now, 5 * 60 * 1000L)) continue;
                 List<String> commands = reward.isFirstVote() ? firstVoteCommands : voteCommands;
-                if (!deliverCommands(player, "vote:" + reward.getId(), commands,
-                        reward.getServiceName(), reward.getAddress())) return;
-                voteHistory.deletePendingReward(reward.getId());
+                boolean delivered = false;
+                try {
+                    if (!deliverCommands(player, "vote:" + reward.getId(), commands,
+                            reward.getServiceName(), reward.getAddress())) {
+                        continue;
+                    }
+                    voteHistory.deletePendingReward(reward.getId(), owner);
+                    delivered = true;
+                } finally {
+                    if (!delivered) {
+                        voteHistory.releasePendingReward(reward.getId(), owner);
+                    }
+                }
             }
         } finally {
             // Milestones only notify here, including when an ordinary reward fails.

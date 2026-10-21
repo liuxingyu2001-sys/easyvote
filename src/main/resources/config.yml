@@ -1,3 +1,20 @@
+# 数据存储：sqlite（单服）或 mysql（多服共享）
+# MySQL 模式下所有子服连同一个库；同一条投票、待发奖励、里程碑只会被一个子服处理。
+database:
+  type: sqlite
+  # 共享 MySQL 建议加前缀，避免与其它插件表冲突；SQLite 旧库保持空字符串
+  table-prefix: ""
+  sqlite:
+    file: data.db
+  mysql:
+    host: 127.0.0.1
+    port: 3306
+    database: easyvote
+    username: root
+    password: ""
+    use-ssl: false
+    pool-size: 8
+
 # Votifier 投票功能配置
 votifier:
   # 是否启用 Votifier 投票功能

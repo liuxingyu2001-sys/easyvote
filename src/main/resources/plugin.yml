@@ -3,11 +3,10 @@ version: ${project.version}
 main: com.easyvote.EasyVotePlugin
 api-version: 1.21
 folia-supported: true
-libraries:
-  - org.xerial:sqlite-jdbc:3.49.1.0
+depend: [LiuLib]
 author: liuxingyu2001
 description: 轻量级 Votifier 投票监听插件，支持自定义投票奖励
-softdepend: [PlaceholderAPI, CraftEngine]
+softdepend: [PlaceholderAPI, CraftEngine, liuitemlib]
 commands:
   easyvote:
     description: 管理 EasyVote 投票插件

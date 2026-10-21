@@ -32,6 +32,8 @@ milestones:
     display:
       slot: 20
       material: DIAMOND
+      # material / craftengine_model 支持 LiuLib 完整物品规格（解析失败回退原逻辑）：
+      #   DIAMOND、DIAMOND*3、ce:ns:id、base64:...、nbt:...、item:base64:...、lib:物品库ID（需 liuitemlib）
       # 与 LiuInvite 相同：CE 模型优先，缺失时回退 material
       # craftengine_model: "namespace:item_id"
       name: "&a累计投票 %count% 次奖励"

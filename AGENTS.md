@@ -9,7 +9,7 @@ Minecraft Paper plugin (Java 21) - Votifier-compatible vote listener with config
 mvn clean package -q
 # Or use the skill shortcut: /mvnp
 
-# Output: target/Liu-EasyVote-<version>.jar (shaded fat JAR)
+# Output: target/Liu-EasyVote-<version>.jar (thin JAR; json-simple shaded; LiuLib is a hard runtime dependency)
 ```
 
 ## Architecture
@@ -20,7 +20,7 @@ mvn clean package -q
 ### Core Components
 1. **VotifierServer** - TCP server (default port 10022) handling Votifier v1 RSA, legacy plaintext JSON (not standard v2), and custom packets
 2. **VoteListener** - Processes vote events, dispatches rewards via console commands
-3. **DatabaseManager** - SQLite storage (`data.db`) with WAL mode, auto-migrates from CSV
+3. **DatabaseManager** - SQLite/MySQL storage via LiuLib (`Sqlite`/`MySql`), auto-migrates from CSV
 4. **MilestoneTracker** - Tracks received milestones; marked only after all reward commands succeed
 5. **VoteHistory** - Vote counting across all services, atomic vote + pending-reward persistence
 
@@ -32,11 +32,11 @@ mvn clean package -q
 ```
 VotifierServer → VoteEvent → VoteListener → reward commands (console)
                   ↓
-            DatabaseManager (SQLite)
+            DatabaseManager (SQLite / MySQL via LiuLib)
 ```
 
 ## Configuration
-- `src/main/resources/config.yml` - Default config (copied on first run)
+- `src/main/resources/config.yml` - Default config (copied on first run), including `database.type` and `database.table-prefix`
 - Runtime config: `plugins/EasyVote/config.yml`
 - `src/main/resources/cumulative.yml` → `plugins/EasyVote/cumulative.yml`: milestone enable flag, commands/display, GUI title, states and messages at the root level. Reload both files with `/easyvote reload`.
 - `CumulativeConfig` migrates legacy `votifier.cumulative` only when the standalone file is absent; save the new file before removing the old section. Existing standalone files take precedence; invalid YAML must not silently activate defaults.
@@ -71,9 +71,11 @@ Uses `Bukkit.getGlobalRegionScheduler().run()` for reward dispatch (not async sc
 Inventory creation/opening, chat item previews, and claim replies use the player's entity scheduler.
 
 ### Database
-- SQLite with WAL journal mode
-- Tables: `votes`, `milestones`, `pending_rewards`, `reward_progress`
-- All VoteHistory and MilestoneTracker access is synchronized on the shared DatabaseManager.
+- SQLite (default, `data.db`) or MySQL (multi-server); both via LiuLib `Sqlite`/`MySql`
+- Tables: `votes`, `milestones`, `pending_rewards`, `reward_progress`, optionally prefixed by `database.table-prefix`
+- All VoteHistory and MilestoneTracker access is synchronized on the shared DatabaseManager; MySQL additionally uses `GET_LOCK` per player for vote/daily-limit races and conditional writes for pending leases/milestones.
+- `pending_rewards` uses `claimed_by`/`claimed_at` leases (5 minutes) so only one server delivers a reward after a crash.
+- Changing `database.type` or connection settings requires a restart; `/easyvote reload` only reloads YAML.
 - Auto-migrates `votes.csv` and `milestones.csv` on first run
 
 ## Commands
@@ -92,4 +94,4 @@ Inventory creation/opening, chat item previews, and claim replies use the player
 - Offline rewards persist until the player joins; a zero join delay runs next tick.
 - Retry ordinary rewards on join, new votes, plugin enable, and `/easyvote reload` for online players; only remind for milestones, which require a manual claim/retry.
 - Reward commands run through the global scheduler; compatibility also depends on the target command plugin.
-- Run `mvn test` for the JUnit 4 / SQLite regression tests.
+- Run `mvn test` for the JUnit 4 / SQLite regression tests; MySQL paths are exercised against a live server in integration testing.

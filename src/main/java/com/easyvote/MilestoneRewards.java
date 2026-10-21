@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /** Eligibility is read-only. Only an explicit claim may dispatch milestone commands. */
@@ -17,6 +18,7 @@ final class MilestoneRewards {
     private final VoteHistory history;
     private final MilestoneTracker tracker;
     private final RewardDelivery delivery;
+    private final Logger logger;
     private final Set<String> claiming = new HashSet<>();
     private List<MilestoneReward> rewards = List.of();
     private boolean enabled;
@@ -25,6 +27,7 @@ final class MilestoneRewards {
         this.db = db;
         this.history = history;
         this.tracker = tracker;
+        this.logger = logger;
         this.delivery = new RewardDelivery(history, logger);
     }
 
@@ -65,17 +68,37 @@ final class MilestoneRewards {
             String playerKey = playerName.toLowerCase(Locale.ROOT);
             if (!claiming.add(playerKey)) return ClaimResult.BUSY;
             try {
-                // Use the vote that unlocked this tier, even when it was received offline long ago.
-                VoteHistory.VoteRecord vote = history.getPlayerVoteAt(playerName, count);
-                List<String> commands = reward.commands().stream().map(command -> command
-                    .replace("%player%", playerName).replace("%player_name%", playerName)
-                    .replace("%uuid%", uuid).replace("%service%", vote.getServiceName())
-                    .replace("%address%", vote.getAddress() == null ? "" : vote.getAddress())).toList();
-                if (!delivery.deliver(playerName, "milestone:" + count, commands, online, dispatch)) {
-                    return ClaimResult.FAILED;
+                // 先原子占位再发奖：多个子服同时点击时只有一个能进入命令执行。
+                if (!tracker.markIfNotReceived(playerName, count, System.currentTimeMillis())) {
+                    return ClaimResult.RECEIVED;
                 }
-                tracker.markIfNotReceived(playerName, count, System.currentTimeMillis());
-                return ClaimResult.SUCCESS;
+                boolean completed = false;
+                try {
+                    // Use the vote that unlocked this tier, even when it was received offline long ago.
+                    VoteHistory.VoteRecord vote = history.getPlayerVoteAt(playerName, count);
+                    if (vote == null) {
+                        logger.warning("玩家 " + playerName + " 的第 " + count + " 票记录不存在，暂缓里程碑奖励");
+                        return ClaimResult.FAILED;
+                    }
+                    List<String> commands = reward.commands().stream().map(command -> command
+                        .replace("%player%", playerName).replace("%player_name%", playerName)
+                        .replace("%uuid%", uuid).replace("%service%", vote.getServiceName())
+                        .replace("%address%", vote.getAddress() == null ? "" : vote.getAddress())).toList();
+                    if (!delivery.deliver(playerName, "milestone:" + count, commands, online, dispatch)) {
+                        return ClaimResult.FAILED;
+                    }
+                    completed = true;
+                    return ClaimResult.SUCCESS;
+                } finally {
+                    if (!completed) {
+                        // 命令失败/玩家掉线时回滚占位，保留原有“可重试”语义。
+                        try {
+                            tracker.unmark(playerName, count);
+                        } catch (RuntimeException error) {
+                            logger.log(Level.SEVERE, "回滚里程碑占位失败: " + playerName + " / " + count, error);
+                        }
+                    }
+                }
             } finally {
                 claiming.remove(playerKey);
             }
